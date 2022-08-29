@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# key files
+discord_key.txt
+session_cookies.txt
+database_key.txt
+
+# output files
+nohup.out
