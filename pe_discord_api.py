@@ -1,11 +1,15 @@
 import asyncio
 import discord
-
+import json
 import dbqueries
 import pe_api
 import pe_image
 
-client = discord.Client(intents=discord.Intents.default())
+#temp_intents = discord.Intents(messages=True, guilds=True, members=True)
+temp_intents = discord.Intents().all()
+#temp_partials = discord.Partials(message=True, channel=True)
+
+client = discord.Client(intents=temp_intents)
 
 AWAIT_TIME = 60
 
@@ -20,6 +24,7 @@ PROJECT_EULER_ROLES = [904255861503975465, 905987654083026955, 97572059874133198
 async def on_ready():
 
     print('We have logged in as {0.user}'.format(client))
+    await client.change_presence(activity=discord.Game(name="github.com/Teyzer/ProjectEulerBot"))
 
     repeats = 0
 
@@ -131,12 +136,17 @@ async def on_message(message):
 
     if command == "profile":
         #await message.channel.send("We are re-developing this feature, it isn't available at the moment!")
+
+        #print(json.dumps(message.mentions))
         if len(message.mentions) > 0:
-            profile_url = message.mentions[0].avatar_url
+            #print("none")
+            profile_url = message.mentions[0].avatar.url
             discord_id = message.mentions[0].id
         else:
-            profile_url = message.author.avatar_url
+            #print(json.dumps(discord.Users().get(message.author.id)))
+            profile_url = message.author.avatar.url
             discord_id = message.author.id
+
 
         connection = dbqueries.open_con()
         temp_query = "SELECT * FROM members WHERE discord_id = '{0}'".format(discord_id)

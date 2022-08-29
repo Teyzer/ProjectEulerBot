@@ -135,3 +135,6 @@ database_key.txt
 
 # output files
 nohup.out
+
+# images output
+images_saves/
