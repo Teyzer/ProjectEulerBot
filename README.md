@@ -1,6 +1,6 @@
 # Project Euler Discord Bot
 
-This project contains a package of functions used to communicate with the [Project Euler website](projecteuler.net) and the discord API to provide numerous functions for the members of the [Project Euler Discord](https://discord.gg/28bQcA7pQQ).
+This project contains a package of functions used to communicate with the [Project Euler website](https://projecteuler.net) and the discord API to provide numerous functions for the members of the [Project Euler Discord](https://discord.gg/28bQcA7pQQ).
 
 The desired outcome is to make project euler members life easier, with commands such as `&easiest` that will return a list of the 10 most solved problem by the community that the member didn't solve.
 
@@ -24,4 +24,4 @@ Note that the command `&link` requires you to add the Project Euler Bot as a fri
 
 The main technology used by the scripts is the Project Euler API, which is always of the form `https://projecteuler.net/minimal=...`. Sadly, some data cannot be obtained this way, like the awards of each number (the number of awards can be obtained, but not the exact list showing which ones), kudos, and a lot more. When the minimal API does not cover the data required, I mostly use web scrapping with packages such as `requests` (which is obviously also used for the minimal API), and `beautifulsoup4`. For the database part, I use `pymysl`.
 
-Each file has a special role, which is well explained by their name. `dbqueries.py` contains the database stuff, `pe_api.py` contains the web scrapping and minimal API contact, and so on. Note that `pe` in the name of the files stands for "Project Euler". 
+Each file has a special role, which is well explained by their name. `dbqueries.py` contains the database stuff, `pe_api.py` contains the web scrapping and minimal API contact, and so on. Note that `pe` in the name of the files stands for "Project Euler".
