@@ -4,6 +4,8 @@ import json
 import dbqueries
 import pe_api
 import pe_image
+import time
+from math import *
 
 #temp_intents = discord.Intents(messages=True, guilds=True, members=True)
 temp_intents = discord.Intents().all()
@@ -212,7 +214,31 @@ async def on_message(message):
         username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
         dbqueries.close_con(connection)
 
-        problems = pe_api.unsolved_problems(username)[:10]
+        method = "per_solve"
+        allowed_methods = ["per_solve", "per_order", "per_ratio"]
+        if len(commands) >= 2 and commands[1] in allowed_methods:
+            method = commands[1]
+
+        list_problems = pe_api.unsolved_problems(username)
+
+        if method == "per_solve":
+            problems = sorted(list_problems, key=lambda x: int(x[3]), reverse=True)
+        elif method == "per_order":
+            problems = sorted(list_problems, key=lambda x: int(x[0]))
+        elif method == "per_ratio":
+            problems = sorted(list_problems, key=lambda x: int(x[3])/(int(time.time()) + 31536000 - int(x[2])), reverse=True)
+
+        max_problems = 25
+        number_of_problems = 10
+
+        if len(commands) >= 3:
+            try:
+                x = int(commands[2])
+                number_of_problems = x if x <= max_problems else max_problems
+            except Exception as e:
+                pass
+
+        problems = problems[:number_of_problems]
 
         lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
-        return await message.channel.send("Here are the 10 easiest problems available to `{0}`:".format(username) + lst)
+        return await message.channel.send("Here are the {1} easiest problems available to `{0}`:".format(username, number_of_problems) + lst)
