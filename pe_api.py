@@ -216,6 +216,62 @@ def unsolved_problems(username):
     unsolved = sorted(unsolved, key=lambda x: int(x[3]), reverse=True)
     return unsolved
 
+
+# returns a list of the form [profile1, profile2, profile3, ...]
+# with profile1 of the form [username, nickname, country, language, solved, level, list of solve]
+# and list of solve being of the form 1111100010000111 and so on
+# Note that all values are strings
+def get_all_profiles_on_project_euler():
+
+    url = BASE_URL.format("friends")
+    data = req_to_project_euler(url, True)
+    if data is None:
+        pass
+
+    members = list(map(lambda x: x.split("##"), data.split("\n")))
+    return members[:-1]
+
+
+# returns a list of the form [username1, username2, username3, ...]
+def get_all_usernames_on_project_euler():
+
+    profiles = get_all_profiles_on_project_euler()
+    return list(map(lambda x: x[0], profiles))
+
+
+# returns a list of the form [username1, username2, username3, ...]
+def get_all_members_who_solved(problem):
+
+    solvers = []
+
+    profiles = get_all_profiles_on_project_euler()
+    for profile in profiles:
+        #print(profile)
+        if profile[6][problem - 1] == "1":
+            solvers.append(profile[0])
+
+    return solvers
+
+
+# return a binary string like 111110001100... with every 1 marking a solve
+def problems_of_member(username):
+
+    url = BASE_URL.format("friends")
+    data = req_to_project_euler(url, True)
+    if data is None:
+        pass
+
+    members = list(map(lambda x: x.split("##"), data.split("\n")))
+
+    usernames = list(map(lambda x: x[0], members))
+    if username not in usernames:
+        return None
+
+    member_solves = members[usernames.index(username)][6]
+
+    print(member_solves)
+
+
 # returns an array like [32, '1111110111111111111001011101101011|11111']
 # with first int being the number of awards, and then a binary list, splitted with | for problem and forum awards
 def get_awards(username):
