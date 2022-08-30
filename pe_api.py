@@ -34,6 +34,8 @@ def req_to_project_euler(url, login=True):
         return None
 
 
+# Called every 5 minutes
+# Checks every problem, awards, of every member, and announce if there is any change
 def keep_session_alive():
 
     url = BASE_URL.format("friends")
@@ -104,6 +106,8 @@ def keep_session_alive():
     return all_solved
 
 
+# Return array of the form ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
+# Careful as all values in the array are string, not ints
 def problem_def(n):
     data = req_to_project_euler(BASE_URL.format("problems"))
     lines = data.split("\n")
@@ -112,11 +116,14 @@ def problem_def(n):
     return specs
 
 
+# Return last problem available, including the ones in the recent tab
 def last_problem():
     data = req_to_project_euler(BASE_URL.format("problems"))
     return len(data.split("\n")) - 2
 
 
+# return an array of the form [nb_posts, nb_kudos, 2nd_array]
+# with 2nd_array of the form [[index_post1, kudos_post1], [index_post2, kudos_post2], ...]
 def get_kudos(username):
 
     url = NOT_MINIMAL_BASE_URL.format("progress={0};show=posts".format(username))
@@ -132,6 +139,8 @@ def get_kudos(username):
     return [post_made, kudos_earned, posts]
 
 
+# Return an array of the form [total_kudos, total_change, change_list]
+# with change_list of the form [[post1, change1], [post2, change2], ...]
 def update_kudos(username):
 
     posts_made, kudos_earned, posts_list = get_kudos(username)
@@ -167,6 +176,7 @@ def update_kudos(username):
     return [kudos_earned, total_change, changes]
 
 
+# Returns True or False
 def is_discord_linked(discord_id, connection=None):
 
     if connection is None:
@@ -176,6 +186,9 @@ def is_discord_linked(discord_id, connection=None):
     return len(data.keys()) == 1
 
 
+# Returns a double array of the form [problem_1, problem_2, problem_3, ...]
+# with problem_i of the form ['problem_nb', 'problem_title', 'unix timestamp of publish', 'solved by', '0']
+# careful again, only strings in the arrays
 def unsolved_problems(username):
 
     url = BASE_URL.format("friends")
@@ -203,7 +216,8 @@ def unsolved_problems(username):
     unsolved = sorted(unsolved, key=lambda x: int(x[3]), reverse=True)
     return unsolved
 
-
+# returns an array like [32, '1111110111111111111001011101101011|11111']
+# with first int being the number of awards, and then a binary list, splitted with | for problem and forum awards
 def get_awards(username):
 
     url = NOT_MINIMAL_BASE_URL.format("progress={0};show=awards".format(username))
@@ -222,6 +236,8 @@ def get_awards(username):
     return [sum(solves_problem) + sum(solves_forum), "".join(list(map(str, solves_problem)))+"|"+"".join(list(map(str, solves_forum)))]
 
 
+# returns a list of the form [awards, changes]
+# with each changes of the form [index_award_1, index_award_2, ...]
 def update_awards(username):
 
     connection = dbqueries.open_con()
@@ -250,11 +266,13 @@ def update_awards(username):
     return [current_data[0], changes]
 
 
+# returns a list of all the usernames in the database
 def all_members_in_database():
     data = dbqueries.single_req("SELECT username FROM members;")
     return list(map(lambda x: x["username"], [data[k] for k in data.keys()]))
 
 
+# return a list of all the names of the awards
 def get_awards_specs():
     url = NOT_MINIMAL_BASE_URL.format("progress;show=awards")
     data = req_to_project_euler(url)
@@ -269,7 +287,3 @@ def get_awards_specs():
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in d_problems])
 
     return all_awards
-
-
-if __name__ == "__main__":
-    get_awards_specs()

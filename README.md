@@ -4,7 +4,7 @@ This project contains a package of functions used to communicate with the [Proje
 
 The desired outcome is to make project euler members life easier, with commands such as `&easiest` that will return a list of the 10 most solved problem by the community that the member didn't solve.
 
-Also, one cool feature of the bot is its capacity to constantly seek for new problems solved by the members of the discord. Each minute, it sends a request to the Project Euler website, and with previously saved data in a database, compare everything to see if any member has solved a new problem. With this, the bot announce will announce every problem solved, awards, levels-up...
+Also, one cool feature of the bot is its capacity to constantly seek for new problems solved by the members of the discord. Each minute, it sends a request to the Project Euler website, and with previously saved data in a database, compare everything to see if any member has solved a new problem. With this, the bot will announce every problem solved, awards, levels-up...
 
 ## Features
 
