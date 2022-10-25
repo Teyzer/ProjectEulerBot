@@ -5,8 +5,9 @@ INTER_ROLES_SLEEP = 0.7
 
 LANGUAGES_ROLES = {
     "Assembly": [979775922683129887, "⚒️", None],
+    "C": [1034588396129095690, "🇨", None],
     "C#": [979775187786563584, "🎵", None],
-    "C/C++": [979775061877747733, "🇨", None],
+    "C++": [979775061877747733, "➕", None],
     "Go": [979776131303616555, "🏁", None],
     "Haskell": [979775640876236822, "🍛", None],
     "Java": [979775476606304286, "☕", None],
@@ -81,7 +82,7 @@ class Dropdown(discord.ui.Select):
 
         new_roles = {lang_name: lang_name in self.values for lang_name in LANGUAGES_ROLES}
 
-        for lang_name in LANGUAGES_ROLES:
+        for lang_name in sorted(LANGUAGES_ROLES.keys()):
             if new_roles[lang_name] == self.bool_roles[lang_name]:
                 continue
             role = discord.utils.get(self.author.guild.roles, id=LANGUAGES_ROLES[lang_name][0])
@@ -92,7 +93,7 @@ class Dropdown(discord.ui.Select):
                 await self.author.remove_roles(role)
                 await asyncio.sleep(INTER_ROLES_SLEEP)
 
-        resps = ", ".join(self.values)
+        resps = ", ".join(sorted(self.values))
         print(f"User {self.author.name} updated roles to {resps}")
 
         await interaction.followup.send(
