@@ -9,11 +9,6 @@ import pe_api
 import pe_image
 import interactions_discord as inters
 
-<<<<<<< Updated upstream
-#temp_intents = discord.Intents(messages=True, guilds=True, members=True)
-temp_intents = discord.Intents().all()
-#temp_partials = discord.Partials(message=True, channel=True)
-=======
 import discord
 from discord import option
 
@@ -24,9 +19,7 @@ GUILD_IDS = [PROJECT_EULER_SERVER]
 
 intents = discord.Intents.all()
 bot = discord.Bot(guild_ids=GUILD_IDS, intents=intents)
->>>>>>> Stashed changes
 
-client = discord.Client(intents=temp_intents)
 
 AWAIT_TIME = 60
 
@@ -34,22 +27,14 @@ PREFIX = "&"
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 
-<<<<<<< Updated upstream
-PROJECT_EULER_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142]
-=======
->>>>>>> Stashed changes
 
 
-@client.event
+
+@bot.event
 async def on_ready():
 
-<<<<<<< Updated upstream
-    print('We have logged in as {0.user}'.format(client))
-    await client.change_presence(activity=discord.Game(name="github.com/Teyzer/ProjectEulerBot"))
-=======
     print('We have logged in as {0.user}'.format(bot))
     await bot.change_presence(activity=discord.Game(name="/help for help"))
->>>>>>> Stashed changes
 
     repeats = 0
 
@@ -71,7 +56,7 @@ async def on_ready():
             for problem in solve[1]:
                 data_on_problem = pe_api.problem_def(problem)
                 for channel_id in CHANNELS_TO_ANNOUNCE:
-                    channel = client.get_channel(channel_id)
+                    channel = bot.get_channel(channel_id)
                     if solve[2] == "":
                         sending_message = "`{0}` solved the problem #{1}: '{2}' which has been solved by {3} people, well done! <https://projecteuler.net/problem={1}>"
                         sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3])
@@ -81,7 +66,7 @@ async def on_ready():
                     await channel.send(sending_message)
             if int(solve[3]) % 25 == 0:
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
-                    channel = client.get_channel(channel_id)
+                    channel = bot.get_channel(channel_id)
                     if solve[2] == "":
                         sending_message = "`{0}` has just reached level {1}, congratulations!"
                         sending_message = sending_message.format(solve[0], int(solve[3]) // 25)
@@ -100,61 +85,63 @@ async def on_ready():
             if len(awards_user[1]) != 0:
                 for award in [awards[k] for k in awards_user[1]]:
                     for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
-                        channel = client.get_channel(channel_id)
+                        channel = bot.get_channel(channel_id)
                         await channel.send("`{0}` got the award '{1}', congratulations!".format(solver, award))
 
 
+""" COMMANDS """
+
+@bot.slash_command(name="update", description="Update the known friend list of the bot")
+async def command_hello(ctx):
+    await ctx.defer()
+    if pe_api.keep_session_alive() is None:
+        await ctx.respond("An error occured during the fetch, this may need human checkup")
+    else:
+        await ctx.respond("The data was updated!")
 
 
+@bot.slash_command(name="profile", description="Render your project euler profile in a cool image")
+@option("member", description="Mention the member you want the profile to be displayed", default=None)
+async def command_profile(ctx, member: discord.User):
 
-@client.event
-async def on_message(message):
+    await ctx.defer()
 
-    if message.author == client.user:
-        return
+    if member is not None:
+        profile_url = member.avatar.url
+        discord_id = member.id
+    else:
+        profile_url = ctx.author.avatar.url
+        discord_id = ctx.author.id
 
-    if not message.content.startswith(PREFIX):
-        return
+    print(profile_url, discord_id)
 
-    commands = message.content[1:].split(" ")
-    command = commands[0]
+    connection = dbqueries.open_con()
+    temp_query = "SELECT * FROM members WHERE discord_id = '{0}'".format(discord_id)
+    data = dbqueries.query(temp_query, connection)
 
-    arguments_len = len(commands) - 1
-    print("Command '{0}' by '{1}'".format(command, message.author.name))
+    if len(data.keys()) == 0:
+        dbqueries.close_con(connection)
+        return await ctx.respond("This user is not linked! Please link your account first")
 
-    if command == "link":
+    data = data[0]
 
-        if arguments_len < 1:
-            return await message.channel.send("Please specify a Project Euler username to link with")
+    all_data = dbqueries.query("SELECT * FROM members ORDER BY solved DESC;", connection)
+    total = len(all_data.keys())
+    rank = total
 
-        discord_user_id = message.author.id
-        database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
-        if len(database_discord_user.keys()) != 0:
-            sentence = "Your discord account is already linked to the account `{0}`, type &unlink to unlink it".format(database_discord_user[0]["username"])
-            return await message.channel.send(sentence)
+    for k in all_data.keys():
+        if str(all_data[k]["discord_id"]) == str(discord_id):
+            rank = k+1
 
-        user = dbqueries.single_req("SELECT * FROM members WHERE username = '{0}'".format(commands[1]))
-        if len(user.keys()) == 0:
-            return await message.channel.send("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nIf you think this is a mistake, type &update")
+    return await ctx.respond(file = discord.File(pe_image.generate_profile_image(data["username"], data["solved"], len(data["solve_list"]), rank, total, sum(int(x) for x in data["solve_list"][-10:]), profile_url)))
 
-        user = user[0]
-        if str(user["discord_id"]) != "":
-            return await message.channel.send("This account is already linked to <@{0}>".format(user["discord_id"]))
 
-        temp_query = "UPDATE members SET discord_id = '{0}' WHERE username = '{1}'".format(message.author.id, commands[1])
-        dbqueries.single_req(temp_query)
+@bot.slash_command(name="link", description="Link your project euler account and your discord account")
+@option("username", description="Your Project Euler username account (not nickname)")
+async def command_link(ctx, username: str):
 
-        return await message.channel.send("Your account was linked to `{0}`!".format(commands[1]))
+    await ctx.defer()
 
-    if command == "unlink":
-
-<<<<<<< Updated upstream
-        discord_user_id = message.author.id
-        database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
-
-        if len(database_discord_user.keys()) == 0:
-            return await message.channel.send("Your discord account isn't linked to any profile")
-=======
     discord_user_id = ctx.author.id
     database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
     if len(database_discord_user.keys()) != 0:
@@ -164,79 +151,58 @@ async def on_message(message):
     user = dbqueries.single_req("SELECT * FROM members WHERE username = '{0}'".format(username))
     if len(user.keys()) == 0:
         return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nIf you think this is a mistake, type /update")
->>>>>>> Stashed changes
 
-        temp_query = "UPDATE members SET discord_id = '' WHERE discord_id = '{0}'".format(discord_user_id)
-        dbqueries.single_req(temp_query)
+    user = user[0]
+    if str(user["discord_id"]) != "":
+        return await ctx.respond("This account is already linked to <@{0}>".format(user["discord_id"]))
 
-        return await message.channel.send("Your discord account was unlinked to the project euler `{0}` account".format(database_discord_user[0]["username"]))
+    temp_query = "UPDATE members SET discord_id = '{0}' WHERE username = '{1}'".format(discord_user_id, username)
+    dbqueries.single_req(temp_query)
 
-    if command == "profile":
-        #await message.channel.send("We are re-developing this feature, it isn't available at the moment!")
-
-        #print(json.dumps(message.mentions))
-        if len(message.mentions) > 0:
-            #print("none")
-            profile_url = message.mentions[0].avatar.url
-            discord_id = message.mentions[0].id
-        else:
-            #print(json.dumps(discord.Users().get(message.author.id)))
-            profile_url = message.author.avatar.url
-            discord_id = message.author.id
+    return await ctx.respond("Your account was linked to `{0}`!".format(username))
 
 
-        connection = dbqueries.open_con()
-        temp_query = "SELECT * FROM members WHERE discord_id = '{0}'".format(discord_id)
-        data = dbqueries.query(temp_query, connection)
+@bot.slash_command(name="unlink", description="Unlink your Project Euler account with your discord account")
+async def command_unlink(ctx):
 
-        if len(data.keys()) == 0:
-            dbqueries.close_con(connection)
-            return await message.channel.send("This user is not linked! Please link your account first")
+    await ctx.defer()
 
-        data = data[0]
+    discord_user_id = ctx.author.id
+    database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
 
-        all_data = dbqueries.query("SELECT * FROM members ORDER BY solved DESC;", connection)
-        total = len(all_data.keys())
-        rank = total
+    if len(database_discord_user.keys()) == 0:
+        return await ctx.respond("Your discord account isn't linked to any profile")
 
-        for k in all_data.keys():
-            if str(all_data[k]["discord_id"]) == str(discord_id):
-                rank = k+1
+    temp_query = "UPDATE members SET discord_id = '' WHERE discord_id = '{0}'".format(discord_user_id)
+    dbqueries.single_req(temp_query)
 
-        return await message.channel.send(file = discord.File(pe_image.generate_profile_image(data["username"], data["solved"], len(data["solve_list"]), rank, total, sum(int(x) for x in data["solve_list"][-10:]), profile_url)))
+    return await ctx.respond("Your discord account was unlinked to the project euler `{0}` account".format(database_discord_user[0]["username"]))
 
-    if command == "update":
-        pe_api.keep_session_alive()
-        return await message.channel.send("The data was updated successfully!")
 
-    if command == "problem":
-        return await message.channel.send("This feature is being rebuilt, it doesn't work currently, sorry \\:)")
+@bot.slash_command(name="kudos", description="Display the kudos progression of your posts on the forum")
+@option("member", description="Mention the member you want the kudos to be displayed", default=None)
+async def command_kudos(ctx, member: discord.User):
 
-<<<<<<< Updated upstream
-    if command == "help":
-        return await message.channel.send("Possible commands: link, unlink, profile, update, problem, help")
-=======
+    discord_id = ctx.author.id
+    if member is not None:
+        discord_id = member.id
+
     connection = dbqueries.open_con()
     if not pe_api.is_discord_linked(discord_id, connection):
         dbqueries.close_con(connection)
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
->>>>>>> Stashed changes
 
-    if command == "kudos":
+    username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
+    dbqueries.close_con(connection)
 
-        discord_id = message.author.id
-        if len(message.mentions) != 0:
-            discord_id = message.mentions[0].id
+    kudos, change, changes = pe_api.update_kudos(username)
+    if change == 0:
+        return await ctx.respond("No change for user `{0}`, still {1} kudos (this is normal if this is your first time using the command since there was no previous data)".format(username, kudos))
+    else:
+        k = "```" + "\n".join(list(map(lambda x: ": ".join(list(map(str, x))), changes))) + "```"
+        return await ctx.respond("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(username, change, kudos) + k)
 
-        connection = dbqueries.open_con()
-        if not pe_api.is_discord_linked(discord_id, connection):
-            dbqueries.close_con(connection)
-            return await message.channel.send("This user does not have a project euler account linked! Please link with &link first")
 
-<<<<<<< Updated upstream
-        username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
-        dbqueries.close_con(connection)
-=======
 @bot.slash_command(name="easiest", description="Find the easiest problems you haven't solved yet")
 @option("member", description="The member you want you want to see the next possible solves", default=None)
 @option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="By ratio of solves per time unit")
@@ -246,52 +212,31 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     discord_id = ctx.author.id
     if member is not None:
         discord_id = member.id
->>>>>>> Stashed changes
 
-        kudos, change, changes = pe_api.update_kudos(username)
-        if change == 0:
-            return await message.channel.send("No change for user `{0}`, still {1} kudos (this is normal if this is your first time using the command since there was no previous data)".format(username, kudos))
-        else:
-            k = "```" + "\n".join(list(map(lambda x: ": ".join(list(map(str, x))), changes))) + "```"
-            return await message.channel.send("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(username, change, kudos) + k)
+    print(discord_id)
 
-<<<<<<< Updated upstream
-    if command == "easiest":
-=======
     connection = dbqueries.open_con()
     if not pe_api.is_discord_linked(discord_id, connection):
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
->>>>>>> Stashed changes
 
-        discord_id = message.author.id
-        if len(message.mentions) != 0:
-            discord_id = message.mentions[0].id
+    username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
+    dbqueries.close_con(connection)
 
-        connection = dbqueries.open_con()
-        if not pe_api.is_discord_linked(discord_id, connection):
-            return await message.channel.send("This user does not have a project euler account linked! Please link with &link first")
+    list_problems = pe_api.unsolved_problems(username)
 
-        username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
-        dbqueries.close_con(connection)
+    if method == "By number of solves":
+        problems = sorted(list_problems, key=lambda x: int(x[3]), reverse=True)
+    elif method == "By order of publication":
+        problems = sorted(list_problems, key=lambda x: int(x[0]))
+    elif method == "By ratio of solves per time unit":
+        problems = sorted(list_problems, key=lambda x: int(x[3])/(int(time.time()) + 31536000 - int(x[2])), reverse=True)
 
-        method = "per_solve"
-        allowed_methods = ["per_solve", "per_order", "per_ratio"]
-        if len(commands) >= 2 and commands[1] in allowed_methods:
-            method = commands[1]
+    problems = problems[:display_nb]
 
-        list_problems = pe_api.unsolved_problems(username)
+    lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
+    return await ctx.respond("Here are the {1} easiest problems available to `{0}`:".format(username, display_nb) + lst)
 
-        if method == "per_solve":
-            problems = sorted(list_problems, key=lambda x: int(x[3]), reverse=True)
-        elif method == "per_order":
-            problems = sorted(list_problems, key=lambda x: int(x[0]))
-        elif method == "per_ratio":
-            problems = sorted(list_problems, key=lambda x: int(x[3])/(int(time.time()) + 31536000 - int(x[2])), reverse=True)
 
-<<<<<<< Updated upstream
-        max_problems = 25
-        number_of_problems = 10
-=======
 @bot.slash_command(name="roles-languages", description="Select the languages roles you want to be displayed on your profile")
 async def command_roles_languages(ctx):
 
@@ -300,16 +245,12 @@ async def command_roles_languages(ctx):
     # Sending a message containing our View
     await ctx.respond("Choose your main languages (by alphabetic order):", view=view, ephemeral=True)
 
->>>>>>> Stashed changes
 
-        if len(commands) >= 3:
-            try:
-                x = int(commands[2])
-                number_of_problems = x if x <= max_problems else max_problems
-            except Exception as e:
-                pass
+@bot.event
+async def on_message(message):
 
-        problems = problems[:number_of_problems]
+    if message.author == bot.user:
+        return
 
-        lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
-        return await message.channel.send("Here are the {1} easiest problems available to `{0}`:".format(username, number_of_problems) + lst)
+    if message.content.startswith(PREFIX):
+        await message.channel.send("The & command is not supported anymore please use the slash commands with /")
