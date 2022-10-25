@@ -1,15 +1,30 @@
 import asyncio
-import discord
+import time
+
+from math import *
 import json
+
 import dbqueries
 import pe_api
 import pe_image
-import time
-from math import *
+import interactions_discord as inters
 
+<<<<<<< Updated upstream
 #temp_intents = discord.Intents(messages=True, guilds=True, members=True)
 temp_intents = discord.Intents().all()
 #temp_partials = discord.Partials(message=True, channel=True)
+=======
+import discord
+from discord import option
+
+TEST_SERVER = 943488228084813864
+PROJECT_EULER_SERVER = 903915097804652595
+GUILD_IDS = [PROJECT_EULER_SERVER]
+
+
+intents = discord.Intents.all()
+bot = discord.Bot(guild_ids=GUILD_IDS, intents=intents)
+>>>>>>> Stashed changes
 
 client = discord.Client(intents=temp_intents)
 
@@ -19,14 +34,22 @@ PREFIX = "&"
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 
+<<<<<<< Updated upstream
 PROJECT_EULER_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142]
+=======
+>>>>>>> Stashed changes
 
 
 @client.event
 async def on_ready():
 
+<<<<<<< Updated upstream
     print('We have logged in as {0.user}'.format(client))
     await client.change_presence(activity=discord.Game(name="github.com/Teyzer/ProjectEulerBot"))
+=======
+    print('We have logged in as {0.user}'.format(bot))
+    await bot.change_presence(activity=discord.Game(name="/help for help"))
+>>>>>>> Stashed changes
 
     repeats = 0
 
@@ -125,11 +148,23 @@ async def on_message(message):
 
     if command == "unlink":
 
+<<<<<<< Updated upstream
         discord_user_id = message.author.id
         database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
 
         if len(database_discord_user.keys()) == 0:
             return await message.channel.send("Your discord account isn't linked to any profile")
+=======
+    discord_user_id = ctx.author.id
+    database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
+    if len(database_discord_user.keys()) != 0:
+        sentence = "Your discord account is already linked to the account `{0}`, type /unlink to unlink it".format(database_discord_user[0]["username"])
+        return await ctx.respond(sentence)
+
+    user = dbqueries.single_req("SELECT * FROM members WHERE username = '{0}'".format(username))
+    if len(user.keys()) == 0:
+        return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nIf you think this is a mistake, type /update")
+>>>>>>> Stashed changes
 
         temp_query = "UPDATE members SET discord_id = '' WHERE discord_id = '{0}'".format(discord_user_id)
         dbqueries.single_req(temp_query)
@@ -177,8 +212,15 @@ async def on_message(message):
     if command == "problem":
         return await message.channel.send("This feature is being rebuilt, it doesn't work currently, sorry \\:)")
 
+<<<<<<< Updated upstream
     if command == "help":
         return await message.channel.send("Possible commands: link, unlink, profile, update, problem, help")
+=======
+    connection = dbqueries.open_con()
+    if not pe_api.is_discord_linked(discord_id, connection):
+        dbqueries.close_con(connection)
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+>>>>>>> Stashed changes
 
     if command == "kudos":
 
@@ -191,8 +233,20 @@ async def on_message(message):
             dbqueries.close_con(connection)
             return await message.channel.send("This user does not have a project euler account linked! Please link with &link first")
 
+<<<<<<< Updated upstream
         username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
         dbqueries.close_con(connection)
+=======
+@bot.slash_command(name="easiest", description="Find the easiest problems you haven't solved yet")
+@option("member", description="The member you want you want to see the next possible solves", default=None)
+@option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="By ratio of solves per time unit")
+@option("display_nb", description="The number of problems you want to be displayed", min_value=1, max_value=25, default=10)
+async def command_easiest(ctx, member: discord.User, method: str, display_nb: int):
+    
+    discord_id = ctx.author.id
+    if member is not None:
+        discord_id = member.id
+>>>>>>> Stashed changes
 
         kudos, change, changes = pe_api.update_kudos(username)
         if change == 0:
@@ -201,7 +255,13 @@ async def on_message(message):
             k = "```" + "\n".join(list(map(lambda x: ": ".join(list(map(str, x))), changes))) + "```"
             return await message.channel.send("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(username, change, kudos) + k)
 
+<<<<<<< Updated upstream
     if command == "easiest":
+=======
+    connection = dbqueries.open_con()
+    if not pe_api.is_discord_linked(discord_id, connection):
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+>>>>>>> Stashed changes
 
         discord_id = message.author.id
         if len(message.mentions) != 0:
@@ -228,8 +288,19 @@ async def on_message(message):
         elif method == "per_ratio":
             problems = sorted(list_problems, key=lambda x: int(x[3])/(int(time.time()) + 31536000 - int(x[2])), reverse=True)
 
+<<<<<<< Updated upstream
         max_problems = 25
         number_of_problems = 10
+=======
+@bot.slash_command(name="roles-languages", description="Select the languages roles you want to be displayed on your profile")
+async def command_roles_languages(ctx):
+
+    view = inters.DropdownView(bot, ctx.author)
+
+    # Sending a message containing our View
+    await ctx.respond("Choose your main languages (by alphabetic order):", view=view, ephemeral=True)
+
+>>>>>>> Stashed changes
 
         if len(commands) >= 3:
             try:
