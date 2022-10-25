@@ -20,4 +20,4 @@ if __name__ == '__main__':
         key = f.readline()
     key = key.replace("\n", "").replace("\r", "")
 
-    pe_discord_api.client.run(key)
+    pe_discord_api.bot.run(key)

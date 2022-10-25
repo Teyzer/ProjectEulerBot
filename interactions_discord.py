@@ -1,4 +1,7 @@
 import discord
+import asyncio
+
+INTER_ROLES_SLEEP = 0.7
 
 LANGUAGES_ROLES = {
     "Assembly": [979775922683129887, "⚒️", None],
@@ -74,6 +77,8 @@ class Dropdown(discord.ui.Select):
         # Select object, and the values attribute gets a list of the user's
         # selected options. We only want the first one.
 
+        await interaction.response.defer()
+
         new_roles = {lang_name: lang_name in self.values for lang_name in LANGUAGES_ROLES}
 
         for lang_name in LANGUAGES_ROLES:
@@ -82,12 +87,15 @@ class Dropdown(discord.ui.Select):
             role = discord.utils.get(self.author.guild.roles, id=LANGUAGES_ROLES[lang_name][0])
             if new_roles[lang_name] == True and self.bool_roles[lang_name] == False:
                 await self.author.add_roles(role)
+                await asyncio.sleep(INTER_ROLES_SLEEP)
             if new_roles[lang_name] == False and self.bool_roles[lang_name] == True:
                 await self.author.remove_roles(role)
+                await asyncio.sleep(INTER_ROLES_SLEEP)
 
         resps = ", ".join(self.values)
+        print(f"User {self.author.name} updated roles to {resps}")
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Roles updated to {resps}",
             ephemeral=True
         )
