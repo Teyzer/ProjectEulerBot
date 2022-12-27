@@ -1,3 +1,5 @@
+import datetime
+
 import requests
 import dbqueries
 from bs4 import BeautifulSoup
@@ -79,6 +81,8 @@ def keep_session_alive():
                 l = len(currently_solved)
                 for i in range(1, l+1):
                     if previously_solved[i - 1] != currently_solved[i - 1]:
+                        if is_contributor(db_member, i):
+                            add_contribution(db_member, i)
                         solved.append(i)
 
                 all_solved.append([format_member[0], solved, db_member['discord_id'], format_member[4]])
@@ -251,6 +255,80 @@ def get_all_members_who_solved(problem):
             solvers.append(profile[0])
 
     return solvers
+
+
+# Our heuristic for checking if a user is a contributor to a problem is:
+# Get the time the user solved a problem from their recent solves history,
+# is this less than the most recent solver in the top 100 and are they
+# absent from the top solvers list?
+def is_contributor(username, problem):
+    fastest_solvers = get_fastest_solvers(problem)
+    in_solvers = username in (name for name, _ in fastest_solvers)
+    if in_solvers: return False
+    # Check if user has solved faster than last solver in top 100
+    solved_at = get_user_recent_problems(username).get(problem, datetime.datetime.max)
+    return solved_at < fastest_solvers[-1][1]
+
+
+# Unfortunately, the history page for friends only shows recent problems solved
+def get_user_recent_problems(username):
+    """Return a dictionary of recent problems mapped to datetimes for a given user."""
+    url = NOT_MINIMAL_BASE_URL.format(f"progress={username};show=history")
+    data = req_to_project_euler(url, True)
+    return get_user_recent_problems_from_data(data)
+
+
+def get_user_recent_problems_from_data(data):
+    soup = BeautifulSoup(data, "html.parser")
+    problems = soup.find_all("tr")
+    problem_dict = {}
+    for problem in problems:
+        n, _, date_info = problem.children
+        fst_child = next(date_info.children)
+        datetime_str = fst_child if isinstance(fst_child, str) \
+            else next(fst_child.children)
+        # 15 Jul 22 (07:34.59)
+        dt = datetime.datetime.strptime(datetime_str, "%d %b %y (%H:%M.%S)")
+        problem_dict[int(n.text.strip())] = dt
+    return problem_dict
+
+
+def get_fastest_solvers(problem):
+    url = NOT_MINIMAL_BASE_URL.format(f"fastest={problem}")
+    data = req_to_project_euler(url, True)
+    return get_fastest_solvers_from_data(problem, data)
+
+
+def get_fastest_solvers_from_data(problem, data):
+    unix_ts = int(problem_def(problem)[2])
+    dt = datetime.datetime.utcfromtimestamp(unix_ts)
+    soup = BeautifulSoup(data, "html.parser")
+    div = soup.find(id="statistics_fastest_solvers_page")
+
+    _, *solves = div.find("table").find_all("tr")
+    solver_info = []
+    for solve in solves:
+        columns = solve.find_all("td")
+        position, username, loc, lang, time = (td.text for td in columns)
+        if not isinstance(next(columns[1].children), str):  # it's an alias
+            username = next(columns[1].children).attrs["title"]
+        # seconds, minutes, hours, days, weeks, years
+        times = [1, 60, 60*60, 60*60*24, 60*60*24*7, 60*60*24*7*52]
+        total = 0
+        for raw_time, multiplier in zip(reversed(time.split(", ")), times):
+            time, *_ = raw_time.partition(" ")
+            total += int(time)*multiplier
+        solver_info.append((username, dt + datetime.timedelta(seconds=total)))
+    return solver_info 
+
+
+def add_contribution(username, problem, conn):
+    stmt = (
+        "INSERT INTO problem_contributions (username, problem)"
+        "VALUES (%s, %s)"
+        "ON DUPLICATE KEY UPDATE username=username"
+    )
+    dbqueries.query(stmt, conn, (username, problem))
 
 
 # return a binary string like 111110001100... with every 1 marking a solve
