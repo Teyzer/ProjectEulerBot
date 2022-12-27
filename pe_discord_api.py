@@ -206,6 +206,33 @@ async def command_kudos(ctx, member: discord.User):
         return await ctx.respond("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(username, change, kudos) + k)
 
 
+@bot.slash_command(name="contributions", description="Display problem contributions")
+@option("member", description="The member you want contributions to be displayed for", default=None)
+@option("problem", description="Retroactively check if the member is a contributor for this problem", default=None)
+async def command_contributions(ctx, member: discord.User, problem: int):
+
+    discord_id = ctx.author.id if member is None else member.id
+
+    connection = dbqueries.open_con()
+    if not pe_api.is_discord_linked(discord_id, connection):
+        dbqueries.close_con(connection)
+        return await ctx.respond("This user does not have a project euler account linked! Please link with &link first")
+
+    if problem:
+        username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
+        if pe_api.is_contributor(username, problem):
+            pe_api.add_contribution(username, problem, connection)
+
+    query = (
+        f"SELECT pc.problem FROM problem_contributions pc WHERE m.discord_id='{discord_id}'"
+        "INNER JOIN members m ON m.username = pc.username;"
+    )
+    contributions = dbqueries.query(query.format(discord_id), connection)
+    dbqueries.close_con(connection)
+
+    return await ctx.respond(f"Know contributions for {discord_id}: {contributions}")   
+
+
 @bot.slash_command(name="easiest", description="Find the easiest problems you haven't solved yet")
 @option("member", description="The member you want you want to see the next possible solves", default=None)
 @option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="per_solve")

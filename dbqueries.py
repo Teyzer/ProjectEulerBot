@@ -31,13 +31,13 @@ def open_con(running_server=True):
         return False
 
 
-def query(_query, con):
+def query(_query, con, exec_args=None):
     back = True
     if con is None:
         phone_api.bot_crashed("Database Crash")
         return {}
     cur = con.cursor()
-    cur.execute(_query)
+    cur.execute(_query, exec_args)
     if _query[:6] == "SELECT":
         back = cur.fetchall()
         field_names = [i[0] for i in cur.description]
