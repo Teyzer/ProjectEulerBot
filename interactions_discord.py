@@ -46,10 +46,6 @@ class Dropdown(discord.ui.Select):
         self.author_roles = [y.id for y in self.author.roles]
         self.bool_roles = {lang_name: LANGUAGES_ROLES[lang_name][0] in self.author_roles for lang_name in LANGUAGES_ROLES.keys()}
 
-        #print("got point 3")
-        #print(self.author_roles)
-        #print(self.bool_roles)
-
         # Set the options that will be presented inside the dropdown:
         options = [
             discord.SelectOption(
@@ -59,8 +55,6 @@ class Dropdown(discord.ui.Select):
                 default=self.bool_roles[lang_name]
             ) for lang_name in sorted(LANGUAGES_ROLES.keys())
         ]
-
-        #print(options)
 
         # The placeholder is what will be shown when no option is selected.
         # The min and max values indicate we can only pick one of the three options.

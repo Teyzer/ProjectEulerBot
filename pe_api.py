@@ -10,25 +10,38 @@ NOT_MINIMAL_BASE_URL = "https://projecteuler.net/{0}"
 
 def req_to_project_euler(url, login=True):
 
+    # Read the credentials of the account on projecteuler.net
     with open(CREDENTIALS_LOCATION, "r") as file:
         lines = file.readlines()
+    
+    # Do some formatting
     lines[0] = lines[0].replace("\n", "")
     lines[1] = lines[1].replace("\n", "")
+    
+    # Then store the important credentials
     phpSessId, keepAlive = lines
     cookies = {'PHPSESSID': phpSessId, 'keep_alive': keepAlive}
 
+    # Try to do a request, because there may be some trouble (e.g.: the website is down)
     try:
+
+        # Do the request to the website, with the right cookies that emulate the account
         r = requests.get(url, cookies=cookies)
 
         if r.status_code != 200:
+            
             print(r.status_code)
             print(r.text)
+
+            # Phone API is sending a notifications to Teyzer's phone
             phone_api.bot_crashed(r.status_code)
             return None
+
         else:
             return r.text
 
     except Exception as err:
+        
         phone_api.bot_crashed("Runtime Error")
         print(err)
         return None
@@ -38,66 +51,105 @@ def req_to_project_euler(url, login=True):
 # Checks every problem, awards, of every member, and announce if there is any change
 def keep_session_alive():
 
+    # Doing the right request, to https://projecteuler.net/minimal=friends, to the minimal API
     url = BASE_URL.format("friends")
     data = req_to_project_euler(url, True)
 
+    # If data is None, it means that the request was unsuccessful
     if data is None:
         return None
 
     all_solved = []
 
+    # Go take a look for yourself of https://projecteuler.net/minimal=friends, you may understand better how is data formatted
     members = list(map(lambda x: x.split("##"), data.split("\n")))
     db_members = dbqueries.single_req("SELECT * FROM members;")
     names = list(map(lambda x: db_members[x]["username"], db_members))
 
+    # Connection to the actual database
     connection = dbqueries.open_con()
 
+    # Count the number of people for which nothing has changed (not really useful, mainly for tests)
     people_passed_nothing_changed = 0
 
     for member in members:
 
+        # For the last line of the retrieved data, which is only a blank line
         if len(member) == 1:
             continue
 
+        # Format member: [Account, Nickname, Country, Solves Count, Level, Binary String of solves]
+        # A cell of format members is "" if the members has not set the optional parameter
         format_member = list(map(lambda x: x if x != "" else "Undefined", member))
+
+        # By default, a member of level 0 does not even have their level displayed on the API
         format_member[4] = (format_member[4] if format_member[4] != "Undefined" else '0')
         format_member[6] = format_member[6].replace("\r", "")
 
+        # If the members that we just retrieved is part of the database
         if format_member[0] in names:
+
+            # Then the database member is defined, and we can retrieve it
             db_member = db_members[names.index(format_member[0])]
+
+            # This check means: if the solves in the database is not what we just retrieved, then this means there was a solve (or more)
             if str(db_member['solved']) != format_member[4]:
 
+                # Just for debugging
                 print("Change on member", format_member[0], "on problems solved")
 
                 previously_solved = db_member["solve_list"]
                 currently_solved = format_member[6]
 
+                # In case what was in the database does not have the same length of the current binary string (ie if there was a new problem)
                 previously_solved = previously_solved + "0" * (len(currently_solved) - len(previously_solved))
 
                 solved = []
 
                 l = len(currently_solved)
-                for i in range(1, l+1):
+                for i in range(1, l + 1):
+                    # If the current character is not the same as the previous. We take as true that it's always from 0 to 1 (i.e. there is no "unsolved")
                     if previously_solved[i - 1] != currently_solved[i - 1]:
+                        
+                        # Need to know the position of ths solver
+                        problem_data = problem_def(i)
+                        solver_position = problem_data[3]
+
+                        # Insert the solve in the database
+                        temp_query = "INSERT INTO solves (member, problem, solve_date, position) VALUES ('{0}', {1}, NOW(), {2})"
+                        temp_query = temp_query.format(format_member[0], i, solver_position)
+                        dbqueries.query(temp_query, connection)
+
+                        # Add it in the solves array
                         solved.append(i)
 
+                # Add everything in a nice array, the subarray here is of the form [Account, Solves Count, Discord ID, Level]
                 all_solved.append([format_member[0], solved, db_member['discord_id'], format_member[4]])
 
+                # Again for debug
                 print("{0} solved the problem {1}".format(format_member[0], ",".join(list(map(str, solved)))))
 
+                # We send the new data to the database
                 temp_query = "UPDATE members SET solved={0}, solve_list='{1}' WHERE username = '{2}';"
                 temp_query = temp_query.format(format_member[4], format_member[6], format_member[0])
                 dbqueries.query(temp_query, connection)
 
             else:
+                # Only for debugging
                 people_passed_nothing_changed += 1
+        
+        # Else, the member was not in the databse, meaning we have to get his profile
         else:
 
+            # Need the awards, that are not retrieved by default with minimal=friends    
             awards = get_awards(format_member[0])
 
+            # Then add all of this in the database
             temp_query = "INSERT INTO members (username, nickname, country, language, solved, solve_list, discord_id, awards, awards_list) VALUES ('{0}', '{1}', '{2}', '{3}', {4}, '{5}', '', {6}, '{7}')"
             temp_query = temp_query.format(format_member[0], format_member[1], format_member[2], format_member[3], format_member[4], format_member[6], awards[0], awards[1])
             dbqueries.query(temp_query, connection)
+            
+            # Again some debugging
             print("Added", format_member[0])
 
     print("End of check, passed {0} people".format(people_passed_nothing_changed))
@@ -176,7 +228,7 @@ def update_kudos(username):
     return [kudos_earned, total_change, changes]
 
 
-# Returns True or False
+# Returns True or False, given a discord id
 def is_discord_linked(discord_id, connection=None):
 
     if connection is None:

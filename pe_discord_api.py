@@ -16,17 +16,23 @@ TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
 GUILD_IDS = [PROJECT_EULER_SERVER]
 
+# In order to keep track of the last time the solves of members were checked
+LAST_CHECK_SUCCESS = False
+LAST_CHECK_TIME = time.time()
 
+# Basic Discord stuff
 intents = discord.Intents.all()
 bot = discord.Bot(guild_ids=GUILD_IDS, intents=intents)
 
-
+# Time between each check of solves, in seconds
 AWAIT_TIME = 60
 
+# Previously, the prefix that was used to make commands
 PREFIX = "&"
+
+# The IDs of the channels in which solves and achievements are announced
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
-
 
 
 
@@ -34,15 +40,19 @@ SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 async def on_ready():
 
     print('We have logged in as {0.user}'.format(bot))
-    await bot.change_presence(activity=discord.Game(name="/help for help"))
+    await bot.change_presence(activity=discord.Game(name="'/link' to use commands"))
 
     repeats = 0
 
     while True:
 
+        # Async sleep
         await asyncio.sleep(AWAIT_TIME)
 
+        # In the console
         print(repeats, end="| ")
+        
+        # Getting the data recquired
         solves = pe_api.keep_session_alive()
         repeats += 1
 
@@ -54,7 +64,10 @@ async def on_ready():
 
         for solve in solves:
             for problem in solve[1]:
+
+                # Need to know the position of the solver, this may be optimized in the future, because already retrieved in 'keep_session_alive()'
                 data_on_problem = pe_api.problem_def(problem)
+
                 for channel_id in CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
                     if solve[2] == "":
@@ -64,6 +77,7 @@ async def on_ready():
                         sending_message = "`{0}` (<@{4}>) solved the problem #{1}: '{2}' which has been solved by {3} people, well done! <https://projecteuler.net/problem={1}>"
                         sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3], solve[2])
                     await channel.send(sending_message)
+
             if int(solve[3]) % 25 == 0:
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
