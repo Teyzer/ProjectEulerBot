@@ -1,6 +1,9 @@
 import asyncio
 import time
 
+import datetime
+import pytz
+
 from math import *
 import json
 
@@ -16,9 +19,14 @@ TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
 GUILD_IDS = [PROJECT_EULER_SERVER]
 
+# Initial condition
+STARTING_TIME = datetime.datetime.now(pytz.utc)
+
 # In order to keep track of the last time the solves of members were checked
 LAST_CHECK_SUCCESS = False
-LAST_CHECK_TIME = time.time()
+LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
+REPEATS_SINCE_START = 0
+REPEATS_SUCCESSFUL_SINCE_START = 0
 
 # Basic Discord stuff
 intents = discord.Intents.all()
@@ -34,15 +42,26 @@ PREFIX = "&"
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 
+# Constants for text
+GREEN_CIRCLE = "🟢"
+RED_CIRCLE = "🔴"
+ORANGE_CIRCLE = "🟠"
 
 
 @bot.event
 async def on_ready():
 
-    print('We have logged in as {0.user}'.format(bot))
-    await bot.change_presence(activity=discord.Game(name="'/link' to use commands"))
+    # Global variables in order to modify them
+    global LAST_CHECK_SUCCESS
+    global LAST_CHECK_TIME
+    global REPEATS_SINCE_START
+    global REPEATS_SUCCESSFUL_SINCE_START
 
-    repeats = 0
+    # For debugging
+    print('Login made as {0.user}'.format(bot))
+    
+    # The 'Is playing {}' presence
+    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
 
     while True:
 
@@ -50,15 +69,30 @@ async def on_ready():
         await asyncio.sleep(AWAIT_TIME)
 
         # In the console
-        print(repeats, end="| ")
+        print(REPEATS_SINCE_START, end="| ")
         
         # Getting the data recquired
         solves = pe_api.keep_session_alive()
-        repeats += 1
+        REPEATS_SINCE_START += 1
 
+        # Solve is None means that the data was not retrieved correctly
         if solves is None:
+            
+            if LAST_CHECK_SUCCESS == True:
+                LAST_CHECK_SUCCESS = False
+                await bot.change_presence(activity=discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
             continue
 
+        else:
+
+            if LAST_CHECK_SUCCESS == False:
+                LAST_CHECK_SUCCESS = True
+                await bot.change_presence(activity=discord.Game(name="{0} /link to use me".format(GREEN_CIRCLE)))
+            # We save this moment as the last correct retrieve
+            LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
+            REPEATS_SUCCESSFUL_SINCE_START += 1
+
+        # No solve, so nothing to do
         if len(solves) == 0:
             continue
 
@@ -78,6 +112,8 @@ async def on_ready():
                         sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3], solve[2])
                     await channel.send(sending_message)
 
+            # If the member got a new level
+            # May need to be corrected, as a double solve in a minute may lead the bot to forget a level
             if int(solve[3]) % 25 == 0:
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
@@ -89,29 +125,56 @@ async def on_ready():
                         sending_message = sending_message.format(solve[0], int(solve[3]) // 25, solve[2])
                     await channel.send(sending_message)
 
+        # Get the list of users to check for awards (this is the only time we check forum awards)
         solvers = list(set([solve[0] for solve in solves]))
 
+        # Get the complete list of awards, and then format the array
         awards = pe_api.get_awards_specs()
         awards = awards[0] + awards[1]
 
+        # Checking the awards of each solver
         for solver in solvers:
+
+            # Retrieving data on them, it automatically compute the new awards
             awards_user = pe_api.update_awards(solver)
+            
+            # If there is at least one new award
             if len(awards_user[1]) != 0:
+
+                # Announcing the new awards
                 for award in [awards[k] for k in awards_user[1]]:
                     for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                         channel = bot.get_channel(channel_id)
                         await channel.send("`{0}` got the award '{1}', congratulations!".format(solver, award))
 
 
-""" COMMANDS """
+
+""" 
+COMMANDS 
+"""
 
 @bot.slash_command(name="update", description="Update the known friend list of the bot")
 async def command_hello(ctx):
     await ctx.defer()
     if pe_api.keep_session_alive() is None:
-        await ctx.respond("An error occured during the fetch, this may need human checkup")
+        await ctx.respond("An error occured during the fetch, this may need human checkup. Use /status to get more details.")
     else:
         await ctx.respond("The data was updated!")
+
+
+@bot.slash_command(name="status", description="Give the current status of the bot, concerning recently fetched data")
+async def command_status(ctx):
+    
+    text_response = "The last fetch of data was `{0}`. The last successful fetch was made on `{1}`.\n"
+    text_response += "Since the last restart of the bot (`{4}`), there was `{2}` successful request, over `{3}` in total."
+
+    fetched_data_status = "successful" if LAST_CHECK_SUCCESS else "unsuccessful"
+    fetched_data_time_status = LAST_CHECK_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+    fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+
+    text_response = text_response.format(fetched_data_status, fetched_data_time_status, str(REPEATS_SINCE_START), str(REPEATS_SUCCESSFUL_SINCE_START), fetch_starting_time)
+
+    await ctx.respond(text_response)
 
 
 @bot.slash_command(name="profile", description="Render your project euler profile in a cool image")

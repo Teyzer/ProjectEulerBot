@@ -195,31 +195,57 @@ def get_kudos(username):
 # with change_list of the form [[post1, change1], [post2, change2], ...]
 def update_kudos(username):
 
+    # Get the profile of the user on project euler
     posts_made, kudos_earned, posts_list = get_kudos(username)
+    print(posts_made, kudos_earned, posts_list)
 
+    # Get the profile of the user in the database
     connection = dbqueries.open_con()
     temp_query = "SELECT * FROM pe_posts WHERE username = '{0}';".format(username)
     data = dbqueries.query(temp_query, connection)
 
+    # This is the way data is formatted in the database, if you had 1 kudo on post 162 and 2 kudos on post 163, it would be like 162n2|163n1
     posts_txt = "|".join(["n".join(map(str, p)) for p in posts_list])
 
     changes = []
     total_change = 0
 
+    # If the user had never used /kudos before, so there is no profile in the database
     if len(data.keys()) == 0:
         temp_query = "INSERT INTO pe_posts (username, posts_number, kudos, posts_list) VALUES ('{0}', {1}, {2}, '{3}');".format(username, posts_made, kudos_earned, posts_txt)
         dbqueries.query(temp_query, connection)
     else:
+
+        # Get the first line of the database
         previous = data[0]
+        
+        # Get the data in a nice array [[problemn1, kudos1], ...]
         previous_posts = list(map(lambda x: list(map(int, x.split("n"))), previous["posts_list"].split("|")))
+        print(previous_posts)
+
+        # If the total number of kudos has changed
         if previous["kudos"] != kudos_earned:
+
+            # The number of kudos obtained since the last update
             total_change = kudos_earned - previous["kudos"]
+            
             for post in posts_list:
+
+                # If the post was created between the current command and the last /kudo
+                if post not in previous_posts:
+                    changes.append([post[0], post[1]])
+                    continue
+
+                # If the post was already there, then we compute the number of kudos gained there
                 for previous_post in previous_posts:
+                    
+                    # If we got the right post that has the problem number corresponding to the actual one
                     if post[0] == previous_post[0]:
                         if post[1] != previous_post[1]:
                             changes.append([post[0], post[1] - previous_post[1]])
                         break
+        
+        # If there was any change, we modify the profile in the database, wheter it is a new kudo or simply a new post, without kudos on it
         if previous["posts_number"] != posts_made or previous["kudos"] != kudos_earned:
             temp_query = "UPDATE pe_posts SET posts_number='{0}', kudos='{1}', posts_list='{2}' WHERE username='{3}'".format(posts_made, kudos_earned, posts_txt, username)
             dbqueries.query(temp_query, connection)
