@@ -1,6 +1,8 @@
 import requests
-import dbqueries
 from bs4 import BeautifulSoup
+
+import dbqueries
+
 import phone_api
 
 CREDENTIALS_LOCATION = "session_cookies.txt"
@@ -8,6 +10,7 @@ BASE_URL = "https://projecteuler.net/minimal={0}"
 NOT_MINIMAL_BASE_URL = "https://projecteuler.net/{0}"
 
 
+# Do a request to the projecteuler website with the corresponding cookies
 def req_to_project_euler(url, login=True):
 
     # Read the credentials of the account on projecteuler.net
@@ -421,3 +424,20 @@ def get_awards_specs():
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in d_problems])
 
     return all_awards
+
+
+# Get the solves of the last few days in the database
+def get_solves_in_database(days_count = 0):
+
+    connection = dbqueries.open_con()
+
+    if days_count == 0:
+        temp_query = "SELECT * FROM solves"
+    else:
+        temp_query = "SELECT * FROM solves WHERE DATE(solve_date) BETWEEN DATE(CURRENT_DATE() - INTERVAL {0} DAY) AND DATE(CURRENT_DATE());"
+        temp_query = temp_query.format(days_count)
+        
+    data = dbqueries.query(temp_query, connection)
+    dbqueries.close_con(connection)
+
+    return data

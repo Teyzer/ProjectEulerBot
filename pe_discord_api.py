@@ -44,8 +44,8 @@ SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 
 # Constants for text
 GREEN_CIRCLE = "🟢"
-RED_CIRCLE = "🔴"
 ORANGE_CIRCLE = "🟠"
+RED_CIRCLE = "🔴"
 
 
 @bot.event

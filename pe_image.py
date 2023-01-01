@@ -22,6 +22,7 @@ colors = {
 }
 
 
+# Add some text on the image
 def text_adder(img, text, fill, coords, font_size=20):
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(general_font, font_size)
@@ -29,6 +30,7 @@ def text_adder(img, text, fill, coords, font_size=20):
     return img
 
 
+# Set the profile picture on the image
 def set_profile_picture(img, url, border):
     w, h = img.size
     draw = ImageDraw.Draw(img)
@@ -44,6 +46,7 @@ def set_profile_picture(img, url, border):
     return img
 
 
+# The progress bar of the problem solved
 def set_progress_bar(img, solved, total, border, height=40):
     w, h = img.size
     draw = ImageDraw.Draw(img)
@@ -53,6 +56,7 @@ def set_progress_bar(img, solved, total, border, height=40):
     return img
 
 
+# Add the rectangles covering the area allowing to darken the image
 def add_center_fill(img, border=10):
     w, h = img.size
     draw = ImageDraw.Draw(img, "RGBA")
@@ -60,6 +64,7 @@ def add_center_fill(img, border=10):
     return img
 
 
+# The main function used to create the profile picture images
 def generate_profile_image(username, solved_by, total_problems, rank_in_discord, total_in_discord, solves_in_last_ten, discord_picture_url):
 
     percentage = round(solved_by / total_problems * 100)
