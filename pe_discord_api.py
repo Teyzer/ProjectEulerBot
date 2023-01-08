@@ -1,63 +1,113 @@
 import asyncio
-import discord
+import time
+
+import datetime
+import pytz
+
+from math import *
 import json
+
 import dbqueries
 import pe_api
 import pe_image
-import time
-from math import *
+import pe_plot
 
+import interactions_discord as inters
+import discord
 from discord import option
 
 TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
-GUILD_IDS = [TEST_SERVER]
+GUILD_IDS = [PROJECT_EULER_SERVER]
 
-#temp_intents = discord.Intents().all()
-#client = discord.Client(intents=temp_intents)
-#tree = app_commands.CommandTree(client)
+# Initial condition
+STARTING_TIME = datetime.datetime.now(pytz.utc)
 
+# In order to keep track of the last time the solves of members were checked
+LAST_CHECK_SUCCESS = False
+LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
+REPEATS_SINCE_START = 0
+REPEATS_SUCCESSFUL_SINCE_START = 0
+
+# Basic Discord stuff
 intents = discord.Intents.all()
 bot = discord.Bot(guild_ids=GUILD_IDS, intents=intents)
 
-
+# Time between each check of solves, in seconds
 AWAIT_TIME = 60
 
+# Previously, the prefix that was used to make commands
 PREFIX = "&"
+
+# The IDs of the channels in which solves and achievements are announced
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 
-#PROJECT_EULER_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142]
-
-#bot = commands.Bot(debug_guilds=[PROJECT_EULER_GUILD_ID], command_prefix=PREFIX, intents=temp_intents)
-
+# Constants for text
+GREEN_CIRCLE = "🟢"
+ORANGE_CIRCLE = "🟠"
+RED_CIRCLE = "🔴"
 
 
 @bot.event
 async def on_ready():
 
-    print('We have logged in as {0.user}'.format(bot))
-    await bot.change_presence(activity=discord.Game(name="github.com/Teyzer/ProjectEulerBot"))
+    # Global variables in order to modify them
+    global LAST_CHECK_SUCCESS
+    global LAST_CHECK_TIME
+    global REPEATS_SINCE_START
+    global REPEATS_SUCCESSFUL_SINCE_START
 
-    repeats = 0
+    # For debugging
+    print('Login made as {0.user}'.format(bot))
+    
+    # The 'Is playing {}' presence
+    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
 
     while True:
 
+        # Async sleep
         await asyncio.sleep(AWAIT_TIME)
 
-        print(repeats, end="| ")
-        solves = pe_api.keep_session_alive()
-        repeats += 1
+        # In the console
+        print(REPEATS_SINCE_START, end="| ")
 
+        if REPEATS_SINCE_START % 3600 == 0:
+            print("Trying to update global stats... ", end="")
+            global_update_output = pe_api.update_global_stats()
+            print(global_update_output, end= " | ")
+        
+        # Getting the data recquired
+        solves = pe_api.keep_session_alive()
+        REPEATS_SINCE_START += 1
+
+        # Solve is None means that the data was not retrieved correctly
         if solves is None:
+            
+            if LAST_CHECK_SUCCESS == True:
+                LAST_CHECK_SUCCESS = False
+                await bot.change_presence(activity=discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
             continue
 
+        else:
+
+            if LAST_CHECK_SUCCESS == False:
+                LAST_CHECK_SUCCESS = True
+                await bot.change_presence(activity=discord.Game(name="{0} /link to use me".format(GREEN_CIRCLE)))
+            # We save this moment as the last correct retrieve
+            LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
+            REPEATS_SUCCESSFUL_SINCE_START += 1
+
+        # No solve, so nothing to do
         if len(solves) == 0:
             continue
 
         for solve in solves:
             for problem in solve[1]:
+
+                # Need to know the position of the solver, this may be optimized in the future, because already retrieved in 'keep_session_alive()'
                 data_on_problem = pe_api.problem_def(problem)
+
                 for channel_id in CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
                     if solve[2] == "":
@@ -67,6 +117,9 @@ async def on_ready():
                         sending_message = "`{0}` (<@{4}>) solved the problem #{1}: '{2}' which has been solved by {3} people, well done! <https://projecteuler.net/problem={1}>"
                         sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3], solve[2])
                     await channel.send(sending_message)
+
+            # If the member got a new level
+            # May need to be corrected, as a double solve in a minute may lead the bot to forget a level
             if int(solve[3]) % 25 == 0:
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
@@ -78,29 +131,56 @@ async def on_ready():
                         sending_message = sending_message.format(solve[0], int(solve[3]) // 25, solve[2])
                     await channel.send(sending_message)
 
+        # Get the list of users to check for awards (this is the only time we check forum awards)
         solvers = list(set([solve[0] for solve in solves]))
 
+        # Get the complete list of awards, and then format the array
         awards = pe_api.get_awards_specs()
         awards = awards[0] + awards[1]
 
+        # Checking the awards of each solver
         for solver in solvers:
+
+            # Retrieving data on them, it automatically compute the new awards
             awards_user = pe_api.update_awards(solver)
+            
+            # If there is at least one new award
             if len(awards_user[1]) != 0:
+
+                # Announcing the new awards
                 for award in [awards[k] for k in awards_user[1]]:
                     for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                         channel = bot.get_channel(channel_id)
                         await channel.send("`{0}` got the award '{1}', congratulations!".format(solver, award))
 
 
-""" COMMANDS """
+
+""" 
+COMMANDS 
+"""
 
 @bot.slash_command(name="update", description="Update the known friend list of the bot")
 async def command_hello(ctx):
     await ctx.defer()
     if pe_api.keep_session_alive() is None:
-        await ctx.respond("An error occured during the fetch, this may need human checkup")
+        await ctx.respond("An error occured during the fetch, this may need human checkup. Use /status to get more details.")
     else:
         await ctx.respond("The data was updated!")
+
+
+@bot.slash_command(name="status", description="Give the current status of the bot, concerning recently fetched data")
+async def command_status(ctx):
+    
+    text_response = "The last fetch of data was `{0}`. The last successful fetch was made on `{1}`.\n"
+    text_response += "Since the last restart of the bot (`{4}`), there was `{2}` successful request, over `{3}` in total."
+
+    fetched_data_status = "successful" if LAST_CHECK_SUCCESS else "unsuccessful"
+    fetched_data_time_status = LAST_CHECK_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+    fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+
+    text_response = text_response.format(fetched_data_status, fetched_data_time_status, str(REPEATS_SINCE_START), str(REPEATS_SUCCESSFUL_SINCE_START), fetch_starting_time)
+
+    await ctx.respond(text_response)
 
 
 @bot.slash_command(name="profile", description="Render your project euler profile in a cool image")
@@ -109,12 +189,16 @@ async def command_profile(ctx, member: discord.User):
 
     await ctx.defer()
 
-    if member is not None:
+    if member is None:
+        member = ctx.author
+
+    discord_id = member.id
+    profile_url = "https://cdn.discordapp.com/embed/avatars/{0}.png".format(int(member.discriminator) % 5)
+
+    try:
         profile_url = member.avatar.url
-        discord_id = member.id
-    else:
-        profile_url = ctx.author.avatar.url
-        discord_id = ctx.author.id
+    except:
+        pass
 
     print(profile_url, discord_id)
 
@@ -148,12 +232,12 @@ async def command_link(ctx, username: str):
     discord_user_id = ctx.author.id
     database_discord_user = dbqueries.single_req("SELECT * FROM members WHERE discord_id = '{0}'".format(discord_user_id))
     if len(database_discord_user.keys()) != 0:
-        sentence = "Your discord account is already linked to the account `{0}`, type &unlink to unlink it".format(database_discord_user[0]["username"])
+        sentence = "Your discord account is already linked to the account `{0}`, type /unlink to unlink it".format(database_discord_user[0]["username"])
         return await ctx.respond(sentence)
 
     user = dbqueries.single_req("SELECT * FROM members WHERE username = '{0}'".format(username))
     if len(user.keys()) == 0:
-        return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nIf you think this is a mistake, type &update")
+        return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nIf you think this is a mistake, type /update")
 
     user = user[0]
     if str(user["discord_id"]) != "":
@@ -193,7 +277,7 @@ async def command_kudos(ctx, member: discord.User):
     connection = dbqueries.open_con()
     if not pe_api.is_discord_linked(discord_id, connection):
         dbqueries.close_con(connection)
-        return await ctx.respond("This user does not have a project euler account linked! Please link with &link first")
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
     username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
     dbqueries.close_con(connection)
@@ -208,7 +292,7 @@ async def command_kudos(ctx, member: discord.User):
 
 @bot.slash_command(name="easiest", description="Find the easiest problems you haven't solved yet")
 @option("member", description="The member you want you want to see the next possible solves", default=None)
-@option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="per_solve")
+@option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="By ratio of solves per time unit")
 @option("display_nb", description="The number of problems you want to be displayed", min_value=1, max_value=25, default=10)
 async def command_easiest(ctx, member: discord.User, method: str, display_nb: int):
     
@@ -220,7 +304,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
 
     connection = dbqueries.open_con()
     if not pe_api.is_discord_linked(discord_id, connection):
-        return await ctx.respond("This user does not have a project euler account linked! Please link with &link first")
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
     username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
     dbqueries.close_con(connection)
@@ -239,6 +323,29 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
     return await ctx.respond("Here are the {1} easiest problems available to `{0}`:".format(username, display_nb) + lst)
 
+
+@bot.slash_command(name="graph", description="Graph something!")
+@option("data", choices=["solves"], default="solves")
+@option("subset", choices=["local", "global"], default="local")
+@option("days_count", min_value=0, max_value=1000, default=10)
+async def command_graph(ctx, data: str, subset: str, days_count: int):
+    
+    await ctx.defer()
+
+    if data == "solves" and subset == "local":
+        image_location = pe_plot.graph_solves(days_count)
+
+    return await ctx.respond(file = discord.File(image_location))
+
+
+
+@bot.slash_command(name="roles-languages", description="Select the languages roles you want to be displayed on your profile")
+async def command_roles_languages(ctx):
+
+    view = inters.DropdownView(bot, ctx.author)
+
+    # Sending a message containing our View
+    await ctx.respond("Choose your main languages (by alphabetic order):", view=view, ephemeral=True)
 
 
 @bot.event
