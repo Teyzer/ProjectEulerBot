@@ -1,6 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 
+import datetime
+import pytz
+
 import dbqueries
 
 import phone_api
@@ -74,6 +77,10 @@ def keep_session_alive():
 
     # Count the number of people for which nothing has changed (not really useful, mainly for tests)
     people_passed_nothing_changed = 0
+
+    # Assert that there is no error in the retrieve
+    if len(names) < 10:
+        return None
 
     for member in members:
 
@@ -441,3 +448,104 @@ def get_solves_in_database(days_count = 0):
     dbqueries.close_con(connection)
 
     return data
+
+
+# Get the current global stats on the website
+def get_global_stats():
+
+    # Basic script to get the html code on a page
+    problem_url = NOT_MINIMAL_BASE_URL.format("problem_analysis")
+    problem_data = req_to_project_euler(problem_url)
+    problem_soup = BeautifulSoup(problem_data, 'html.parser')
+
+    # This tag represents the column we wants
+    problems = problem_soup.find_all(class_="equal_column")
+    problems = list(map(lambda x: x.text, problems)) # Get the text of elements, no html tags
+    problems = list(filter(lambda x: x != "Solved Exactly", problems)) # Remove colum names
+
+    # Problem count
+    problem_count = sum([(i + 1) * int(problems[i]) for i in range(len(problems))])
+    
+    # Again, basic requests to get html code
+    level_url = NOT_MINIMAL_BASE_URL.format("levels")
+    level_data = req_to_project_euler(level_url)
+    level_soup = BeautifulSoup(level_data, 'html.parser')
+
+    # Format all this data
+    levels = level_soup.find_all(class_="small_notice")
+    levels = list(map(lambda x: x.text.split()[0], levels)) # format <div>4054 members</div>
+    
+    # Get levels count
+    level_count = sum([(i + 1) * int(levels[i]) for i in range(len(levels))])    
+
+    # Basic script to get the awards stats
+    award_url = NOT_MINIMAL_BASE_URL.format("awards")
+    award_data = req_to_project_euler(award_url)
+    award_soup = BeautifulSoup(award_data, 'html.parser')
+
+    # Formatting the data
+    awards = award_soup.find_all(class_="small_notice")
+    awards = list(map(lambda x: x.text.split()[0], awards))
+    
+    # Award count
+    award_count = sum(list(map(int, awards)))
+
+    return [problem_count, level_count, award_count]
+
+
+# Update the database with global statistics
+def update_global_stats():
+
+    # Open connection to the database
+    connection = dbqueries.open_con()
+
+    # The query to retrieve saved statistics
+    temp_query = "SELECT * FROM global_constants"
+    previous_data = dbqueries.query(temp_query, connection)
+
+    # Ensure the retrieve was successful
+    if len(previous_data) == 1:
+        previous_data = previous_data[0]
+    else:
+        dbqueries.close_con(connection)
+        return False
+
+    # Assert the current day has not already been retrieved
+    current_day = datetime.datetime.now(pytz.utc).strftime("%Y-%m-%d")
+    last_date = datetime.datetime.strptime(previous_data["saved_date"], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
+
+    if current_day == last_date:
+        return False
+
+    # Get today's statistics
+    problem_count, level_count, award_count = get_global_stats()
+
+    # Compute the difference for each stat
+    problem_diff = problem_count - previous_data["solves_count"]
+    level_diff = level_count - previous_data["levels_count"]
+    award_diff = award_count - previous_data["awards_count"]
+
+    # If the cache is still the same, no need to update right now
+    if problem_diff == 0 and level_diff == 0 and award_diff == 0:
+        return False
+
+    # And bring it back in the database
+    temp_query = "INSERT INTO global_stats (solves, levels, awards, date_stat) VALUES ({0}, {1}, {2}, NOW())"
+    temp_query = temp_query.format(problem_diff, level_diff, award_diff)
+    dbqueries.query(temp_query, connection)
+
+    # Update the last data
+    temp_query = "UPDATE global_constants SET solves_count = {0}, levels_count = {1}, awards_count = {2}, saved_date = NOW()"
+    temp_query = temp_query.format(problem_count, level_count, award_count)
+    dbqueries.query(temp_query, connection)
+
+    # Alert my phone that everything has went as planned
+    phone_api.bot_success("Added stats for day " + current_day)
+
+    return True # Everything went fine
+
+
+
+if __name__ == "__main__":
+    dbqueries.setup_database_keys()
+    print(update_global_stats())

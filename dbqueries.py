@@ -7,12 +7,27 @@ import phone_api
 credentials_server = {"user": "euler_remote", "db": "euler"}
 credentials_remote = credentials_server
 
+MYSQL_KEYFILE = "database_key.txt"
+
+
+def setup_database_keys():
+
+    global credentials_server
+
+    # setup mysql key found in private file
+    with open(MYSQL_KEYFILE) as f:
+        key = list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines()))
+
+    credentials_server["password"] = key[0]
+    credentials_server["host"] = key[1]
+
+
+
 
 def single_req(_req, running_server=True):
     con = open_con(running_server=running_server)
     if con is False:
-        phone_api.bot_crashed("Database Crash")
-        print("Database request crash")
+        phone_api.bot_crashed("Error while querying database")
         return {}
     result = query(_req, con)
     close_con(con)
@@ -26,15 +41,15 @@ def open_con(running_server=True):
         else:
             return pymysql.connect(host=credentials_remote["host"], user=credentials_remote["user"], password=credentials_remote["password"], db=credentials_remote["db"])
     except Exception as e:
-        print(e)
+        print("Error while creating a connection to database:", e)
         phone_api.bot_crashed("Database request crash")
         return False
 
 
 def query(_query, con):
     back = True
-    if con is None:
-        phone_api.bot_crashed("Database Crash")
+    if con is None or con is False:
+        phone_api.bot_crashed("Error while querying database")
         return {}
     cur = con.cursor()
     cur.execute(_query)
@@ -49,7 +64,8 @@ def query(_query, con):
 
 
 def close_con(con):
-    con.close()
+    if con is not None and con is not False:
+        con.close()
 
 
 def to_json(_object, headers):

@@ -10,8 +10,9 @@ import json
 import dbqueries
 import pe_api
 import pe_image
-import interactions_discord as inters
+import pe_plot
 
+import interactions_discord as inters
 import discord
 from discord import option
 
@@ -70,6 +71,11 @@ async def on_ready():
 
         # In the console
         print(REPEATS_SINCE_START, end="| ")
+
+        if REPEATS_SINCE_START % 3600 == 0:
+            print("Trying to update global stats... ", end="")
+            global_update_output = pe_api.update_global_stats()
+            print(global_update_output, end= " | ")
         
         # Getting the data recquired
         solves = pe_api.keep_session_alive()
@@ -316,6 +322,21 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
 
     lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
     return await ctx.respond("Here are the {1} easiest problems available to `{0}`:".format(username, display_nb) + lst)
+
+
+@bot.slash_command(name="graph", description="Graph something!")
+@option("data", choices=["solves"], default="solves")
+@option("subset", choices=["local", "global"], default="local")
+@option("days_count", min_value=0, max_value=1000, default=10)
+async def command_graph(ctx, data: str, subset: str, days_count: int):
+    
+    await ctx.defer()
+
+    if data == "solves" and subset == "local":
+        image_location = pe_plot.graph_solves(days_count)
+
+    return await ctx.respond(file = discord.File(image_location))
+
 
 
 @bot.slash_command(name="roles-languages", description="Select the languages roles you want to be displayed on your profile")
