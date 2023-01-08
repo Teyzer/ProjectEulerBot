@@ -271,7 +271,7 @@ def is_discord_linked(discord_id, connection=None):
         data = dbqueries.single_req("SELECT * FROM members WHERE discord_id='{0}';".format(discord_id))
     else:
         data = dbqueries.query("SELECT * FROM members WHERE discord_id='{0}';".format(discord_id), connection)
-    return len(data.keys()) == 1
+    return len(data.keys()) >= 1
 
 
 # Returns a double array of the form [problem_1, problem_2, problem_3, ...]
