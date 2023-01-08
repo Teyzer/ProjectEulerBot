@@ -183,12 +183,16 @@ async def command_profile(ctx, member: discord.User):
 
     await ctx.defer()
 
-    if member is not None:
+    if member is None:
+        member = discord.author
+
+    discord_id = member.id
+    profile_url = "https://cdn.discordapp.com/embed/avatars/{0}.png".format(int(member.discriminator) % 5)
+
+    try:
         profile_url = member.avatar.url
-        discord_id = member.id
-    else:
-        profile_url = ctx.author.avatar.url
-        discord_id = ctx.author.id
+    except:
+        pass
 
     print(profile_url, discord_id)
 
