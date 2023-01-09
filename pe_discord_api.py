@@ -72,7 +72,7 @@ async def on_ready():
         # In the console
         print(REPEATS_SINCE_START, end="| ")
 
-        if REPEATS_SINCE_START % 3600 == 0:
+        if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 0:
             print("Trying to update global stats... ", end="")
             global_update_output = pe_api.update_global_stats()
             print(global_update_output, end= " | ")
