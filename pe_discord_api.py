@@ -332,8 +332,10 @@ async def command_graph(ctx, data: str, subset: str, days_count: int):
     
     await ctx.defer()
 
-    if data == "solves" and subset == "local":
-        image_location = pe_plot.graph_solves(days_count)
+    if data == "solves":
+        image_location = pe_plot.graph_solves(days_count, subset == "local")
+    else:
+        return await ctx.respond("The given parameters are not actually available")
 
     return await ctx.respond(file = discord.File(image_location))
 

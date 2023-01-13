@@ -67,8 +67,11 @@ def keep_session_alive():
 
     all_solved = []
 
+    # Format data to get into the database
+    format_func = lambda x: x.replace("C#", "Csharp").replace("F#", "Fsharp").split("##") 
+
     # Go take a look for yourself of https://projecteuler.net/minimal=friends, you may understand better how is data formatted
-    members = list(map(lambda x: x.split("##"), data.split("\n")))
+    members = list(map(format_func, data.split("\n")))
     db_members = dbqueries.single_req("SELECT * FROM members;")
     names = list(map(lambda x: db_members[x]["username"], db_members))
 
@@ -448,6 +451,23 @@ def get_solves_in_database(days_count = 0):
     dbqueries.close_con(connection)
 
     return data
+
+
+# Get the global solves in the database
+def get_global_solves_in_database(days_count = 0):
+
+    connection = dbqueries.open_con()
+
+    if days_count == 0:
+        temp_query = "SELECT id, solves, DATE(date_stat) FROM global_stats"
+    else:
+        temp_query = "SELECT id, solves, DATE(date_stat) FROM global_stats WHERE DATE(date_stat) BETWEEN DATE(CURRENT_DATE() - INTERVAL {0} DAY) AND DATE(CURRENT_DATE());"
+        temp_query = temp_query.format(days_count)
+
+    data = dbqueries.query(temp_query, connection)
+    dbqueries.close_con(connection)
+
+    return data 
 
 
 # Get the current global stats on the website

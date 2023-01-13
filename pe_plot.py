@@ -14,24 +14,35 @@ def graph_start():
 
 
 # Return a graph of the last solves during the last 'day_counts' days.
-def graph_solves(day_counts: int, smoothing = 1):
+def graph_solves(day_counts: int, local: bool, smoothing = 1):
 
     save_location = "graphs/solves_figure.png"
 
     database_format = "%Y-%m-%d"
     output_format = "%Y-%m-%d"
 
-    data = pe_api.get_solves_in_database(day_counts)
-    data_len = day_counts + 1
+    if local is True:
 
-    current_day = datetime.datetime.now(pytz.utc)
-    days_list = [(current_day - datetime.timedelta(days=x)).strftime(output_format) for x in range(data_len)]
+        data = pe_api.get_solves_in_database(day_counts)
+        data_len = day_counts + 1
 
-    counts = {day: 0 for day in days_list}
+        current_day = datetime.datetime.now(pytz.utc)
+        days_list = [(current_day - datetime.timedelta(days=x)).strftime(output_format) for x in range(data_len)]
 
-    for i in data.keys():
-        day_as_key = datetime.datetime.strptime(data[i]["solve_date"].split()[0], database_format).strftime(output_format)
-        counts[day_as_key] += 1
+        counts = {day: 0 for day in days_list}
+
+        for i in data.keys():
+            day_as_key = datetime.datetime.strptime(data[i]["solve_date"].split()[0], database_format).strftime(output_format)
+            counts[day_as_key] += 1
+
+    else:
+
+        data = pe_api.get_global_solves_in_database(day_counts)
+        data_len = len(data)
+
+        days_list = [data[x]["DATE(date_stat)"] for x in data.keys()]
+        counts = {data[x]["DATE(date_stat)"]: data[x]["solves"] for x in data.keys()}
+        
 
     data_df = {"DATE": days_list, "SOLVES": list(counts.values())}
 
