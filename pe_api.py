@@ -244,19 +244,23 @@ def update_kudos(username):
             
             for post in posts_list:
 
-                # If the post was created between the current command and the last /kudo
-                if post not in previous_posts:
-                    changes.append([post[0], post[1]])
-                    continue
-
+                # To know if we found the post in the known posts in the database
+                found_post_in_already_posted = False
+                
                 # If the post was already there, then we compute the number of kudos gained there
                 for previous_post in previous_posts:
                     
                     # If we got the right post that has the problem number corresponding to the actual one
                     if post[0] == previous_post[0]:
+                        found_post_in_already_posted = True
                         if post[1] != previous_post[1]:
                             changes.append([post[0], post[1] - previous_post[1]])
                         break
+
+                # If the post was created between the current command and the last /kudo
+                if not found_post_in_already_posted:
+                    changes.append([post[0], post[1]])
+                    
         
         # If there was any change, we modify the profile in the database, wheter it is a new kudo or simply a new post, without kudos on it
         if previous["posts_number"] != posts_made or previous["kudos"] != kudos_earned:
