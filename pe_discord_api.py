@@ -49,6 +49,13 @@ ORANGE_CIRCLE = "🟠"
 RED_CIRCLE = "🔴"
 
 
+def formatName(solve):
+    #Where solve = [Account, Array of solves, Discord ID, Level] as returned by pe_api.keep_session_alive(),
+    #returns a nicely formatted string for the user, including a discord @ if it exists.
+    nameFormatted = ("`{0}`" if (solve[2] == "") else "`{0}` (<@{1}>)")
+    nameFormatted = nameFormatted.format(solve[0], solve[2])
+    
+
 @bot.event
 async def on_ready():
 
@@ -103,19 +110,24 @@ async def on_ready():
             continue
 
         for solve in solves:
+            nameFormatted = formatName(solve)
             for problem in solve[1]:
 
                 # Need to know the position of the solver, this may be optimized in the future, because already retrieved in 'keep_session_alive()'
                 data_on_problem = pe_api.problem_def(problem)
+                #data_on_problem = ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 
                 for channel_id in CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
-                    if solve[2] == "":
-                        sending_message = "`{0}` solved the problem #{1}: '{2}' which has been solved by {3} people, well done! <https://projecteuler.net/problem={1}>"
-                        sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3])
+                    
+                    #decide what message to send depending on how many solvers there are
+                    if data_on_problem[3] == "1":
+                        sending_message = nameFormatted + " is the first solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
+                    elif data_on_problem[3] == "2": #include this so we don't have to deal with "1 people" in next section
+                        sending_message = nameFormatted + " is the second solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
                     else:
-                        sending_message = "`{0}` (<@{4}>) solved the problem #{1}: '{2}' which has been solved by {3} people, well done! <https://projecteuler.net/problem={1}>"
-                        sending_message = sending_message.format(solve[0], data_on_problem[0], data_on_problem[1], data_on_problem[3], solve[2])
+                        sending_message = nameFormatted + " solved the problem #{0}: '{1}' which has been solved by {2} people, well done! <https://projecteuler.net/problem={0}>"
+                    sending_message = sending_message.format(data_on_problem[0], data_on_problem[1], data_on_problem[3])
                     await channel.send(sending_message)
 
             # If the member got a new level
@@ -123,12 +135,8 @@ async def on_ready():
             if int(solve[3]) % 25 == 0:
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
-                    if solve[2] == "":
-                        sending_message = "`{0}` has just reached level {1}, congratulations!"
-                        sending_message = sending_message.format(solve[0], int(solve[3]) // 25)
-                    else:
-                        sending_message = "`{0}` (<@{2}>) has just reached level {1}, congratulations!"
-                        sending_message = sending_message.format(solve[0], int(solve[3]) // 25, solve[2])
+                    sending_message = nameFormatted + " has just reached level {}, congratulations!"
+                    sending_message = sending_message.format(int(solve[3]) // 25)
                     await channel.send(sending_message)
 
         # Get the list of users to check for awards (this is the only time we check forum awards)
