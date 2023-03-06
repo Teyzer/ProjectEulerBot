@@ -48,12 +48,23 @@ GREEN_CIRCLE = "🟢"
 ORANGE_CIRCLE = "🟠"
 RED_CIRCLE = "🔴"
 
+FIRST_PLACE_EMOJI = "🥇"
+SECOND_PLACE_EMOJI = "🥈"
+THIRD_PLACE_EMOJI = "🥉"
+
+AWARDING_SENTENCES = [
+    "{0} is the first solver for problem #{1}: '{2}'! Congratulations! " + FIRST_PLACE_EMOJI,
+    "{0} is the second solver for problem #{1}: '{2}'! Congratulations! " + SECOND_PLACE_EMOJI,
+    "{0} is the third solver for problem #{1}: '{2}'! Congratulations! " + THIRD_PLACE_EMOJI,
+    "{0} solved the problem #{1}: '{2}' which has been solved by {3} people, well done!"
+]
+
 
 def formatName(solve):
-    #Where solve = [Account, Array of solves, Discord ID, Level] as returned by pe_api.keep_session_alive(),
-    #returns a nicely formatted string for the user, including a discord @ if it exists.
-    nameFormatted = ("`{0}`" if (solve[2] == "") else "`{0}` (<@{1}>)")
-    nameFormatted = nameFormatted.format(solve[0], solve[2])
+    if solve[2] != "":
+        return "`{0}` (<@{1}>)".format(solve[0], solve[2])
+    else:
+        return "`{0}`".format(solve[0])
     
 
 @bot.event
@@ -110,7 +121,11 @@ async def on_ready():
             continue
 
         for solve in solves:
+            
+            print(solve)
             nameFormatted = formatName(solve)
+            print(nameFormatted)
+            
             for problem in solve[1]:
 
                 # Need to know the position of the solver, this may be optimized in the future, because already retrieved in 'keep_session_alive()'
@@ -121,13 +136,11 @@ async def on_ready():
                     channel = bot.get_channel(channel_id)
                     
                     #decide what message to send depending on how many solvers there are
-                    if data_on_problem[3] == "1":
-                        sending_message = nameFormatted + " is the first solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
-                    elif data_on_problem[3] == "2": #include this so we don't have to deal with "1 people" in next section
-                        sending_message = nameFormatted + " is the second solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
+                    if int(data_on_problem[3]) <= 3:
+                        sending_message = AWARDING_SENTENCES[int(data_on_problem[3]) - 1].format(nameFormatted, data_on_problem[0], data_on_problem[1])
                     else:
-                        sending_message = nameFormatted + " solved the problem #{0}: '{1}' which has been solved by {2} people, well done! <https://projecteuler.net/problem={0}>"
-                    sending_message = sending_message.format(data_on_problem[0], data_on_problem[1], data_on_problem[3])
+                        sending_message = AWARDING_SENTENCES[3].format(nameFormatted, data_on_problem[0], data_on_problem[1], data_on_problem[3])
+                    sending_message = sending_message + " <https://projecteuler.net/problem={0}>".format(data_on_problem[0])
                     await channel.send(sending_message)
 
             # If the member got a new level
