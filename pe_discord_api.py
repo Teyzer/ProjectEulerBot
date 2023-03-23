@@ -60,11 +60,14 @@ AWARDING_SENTENCES = [
 ]
 
 
+# Where solve = [Account, Array of solves, Discord ID, Level] as returned by pe_api.keep_session_alive(),
+# returns a nicely formatted string for the user, including a discord @ if it exists.
 def formatName(solve):
     if solve[2] != "":
         return "`{0}` (<@{1}>)".format(solve[0], solve[2])
     else:
         return "`{0}`".format(solve[0])
+
     
 
 @bot.event
@@ -138,9 +141,14 @@ async def on_ready():
                     #decide what message to send depending on how many solvers there are
                     if int(data_on_problem[3]) <= 3:
                         sending_message = AWARDING_SENTENCES[int(data_on_problem[3]) - 1].format(nameFormatted, data_on_problem[0], data_on_problem[1])
+                        #sending_message = nameFormatted + " is the first solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
+                    #elif int(data_on_problem[3]) == 2: #include this so we don't have to deal with "1 people" in next section
+                        #sending_message = AWARDING_SENTENCES[1].format(nameFormatted, data_on_problem[1], data_on_problem[1], data_on_problem[3])
+                        #sending_message = nameFormatted + " is the second solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
                     else:
                         sending_message = AWARDING_SENTENCES[3].format(nameFormatted, data_on_problem[0], data_on_problem[1], data_on_problem[3])
-                    sending_message = sending_message + " <https://projecteuler.net/problem={0}>".format(data_on_problem[0])
+                        #sending_message = nameFormatted + " solved the problem #{0}: '{1}' which has been solved by {2} people, well done! <https://projecteuler.net/problem={0}>"
+                    sending_message = sending_message + " <https://projecteuler.net/problem={0}>".format(data_on_problem[0]) #.format(data_on_problem[0], data_on_problem[1], data_on_problem[3])
                     await channel.send(sending_message)
 
             # If the member got a new level
@@ -199,7 +207,7 @@ async def command_status(ctx):
     fetched_data_time_status = LAST_CHECK_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
     fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
 
-    text_response = text_response.format(fetched_data_status, fetched_data_time_status, str(REPEATS_SINCE_START), str(REPEATS_SUCCESSFUL_SINCE_START), fetch_starting_time)
+    text_response = text_response.format(fetched_data_status, fetched_data_time_status, str(REPEATS_SUCCESSFUL_SINCE_START), str(REPEATS_SINCE_START), fetch_starting_time)
 
     await ctx.respond(text_response)
 
@@ -305,7 +313,7 @@ async def command_kudos(ctx, member: discord.User):
 
     kudos, change, changes = pe_api.update_kudos(username)
     if change == 0:
-        return await ctx.respond("No change for user `{0}`, still {1} kudos (this is normal if this is your first time using the command since there was no previous data)".format(username, kudos))
+        return await ctx.respond("No change for user `{0}`, still {1} kudos (Always displayed when first using the command)".format(username, kudos))
     else:
         k = "```" + "\n".join(list(map(lambda x: ": ".join(list(map(str, x))), changes))) + "```"
         return await ctx.respond("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(username, change, kudos) + k)
@@ -379,3 +387,77 @@ async def on_message(message):
 
     if message.content.startswith(PREFIX):
         await message.channel.send("The & command is not supported anymore please use the slash commands with /")
+
+@bot.slash_command(name="whosolved", description="Display a list of members who solved a particular problem")
+@option("problem", description="The problem", default=None)
+async def command_profile(ctx, problem: int):
+
+    await ctx.defer()
+
+    if problem is None:
+        return await ctx.respond("Please specify a problem!")
+
+    member_list = pe_api.get_all_members_who_solved(problem)
+
+    if len(member_list) == 0:
+        return await ctx.respond(f"Sadly, no member in my friend list solved problem #{problem}")
+    
+    boxed_members = "```" + ", ".join(member_list) + "```"
+    return await ctx.respond(f"Here is the list of members who solved problem #{problem}" + boxed_members)
+
+
+@bot.slash_command(name="compare", description="Compare the solves of two members")
+@option("first_member", description="The first member you want to compare the solves of")
+@option("second_member", description="The second member you want to compare the solves of")
+@option("max_display", description="The maximum displayed number of problems", default=30, min_value=1, max_value=100)
+async def command_profile(ctx, first_member: discord.User, second_member: discord.User, max_display: int):
+
+    await ctx.defer()
+
+    if first_member is None or second_member is None:
+        return await ctx.respond("Please specify two valid users!")
+    
+    first_username = pe_api.project_euler_username(first_member.id)
+    second_username = pe_api.project_euler_username(second_member.id)
+
+    if not first_username or not second_username:
+        return await ctx.respond("One of the two users (or both) has not linked their project euler account");
+
+    first_solves = pe_api.problems_of_member(first_username)
+    second_solves = pe_api.problems_of_member(second_username)
+
+    common_solves = []
+    common_not_solves = []
+    only_first_solves = []
+    only_second_solves = []
+
+    last_pb = pe_api.last_problem()
+
+    for index in range(1, last_pb + 1):
+        if first_solves[index - 1] == "1" and second_solves[index - 1] == "1":
+            common_solves.append(index)
+        elif first_solves[index - 1] == "1" and second_solves[index - 1] == "0":
+            only_first_solves.append(index)
+        elif first_solves[index - 1] == "0" and second_solves[index - 1] == "1":
+            only_second_solves.append(index)
+        else:
+            common_not_solves.append(index)
+
+    if len(only_first_solves) == 0:
+        only_first_solves = ["None actually"]
+    if len(only_second_solves) == 0:
+        only_second_solves = ["None actually"]
+
+    response_text = "The two members have {0} solves in common.\n".format(len(common_solves))
+    
+    response_text += "Problems solved by `{0}` and not by `{1}`: ".format(first_username, second_username)
+    response_text += "```" + ", ".join(list(map(str, only_first_solves))[:max_display]) + (" ({0} more)".format(len(only_first_solves) - max_display) if len(only_first_solves) > max_display else "") + "```"
+
+    response_text += "Problems solved by `{0}` and not by `{1}`: ".format(second_username, first_username)
+    response_text += "```" + ", ".join(list(map(str, only_second_solves))[:max_display]) + (" ({0} more)".format(len(only_second_solves) - max_display) if len(only_second_solves) > max_display else "") + "```"
+
+    return await ctx.respond(response_text)
+
+    
+
+    

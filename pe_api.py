@@ -275,10 +275,24 @@ def update_kudos(username):
 def is_discord_linked(discord_id, connection=None):
 
     if connection is None:
-        data = dbqueries.single_req("SELECT * FROM members WHERE discord_id='{0}';".format(discord_id))
+        data = dbqueries.single_req("SELECT * FROM members WHERE discord_id='{0}';".format(str(discord_id)))
     else:
-        data = dbqueries.query("SELECT * FROM members WHERE discord_id='{0}';".format(discord_id), connection)
+        data = dbqueries.query("SELECT * FROM members WHERE discord_id='{0}';".format(str(discord_id)), connection)
     return len(data.keys()) >= 1
+
+
+# Returns False if discord_id is not in the database, else returns the project euler username
+def project_euler_username(discord_id, connection=None):
+
+    if connection is None:
+        data = dbqueries.single_req("SELECT * FROM members WHERE discord_id='{0}';".format(str(discord_id)))
+    else:
+        data = dbqueries.query("SELECT * FROM members WHERE discord_id='{0}';".format(str(discord_id)), connection)
+
+    if len(data.keys()) < 1:
+        return False
+
+    return data[0]["username"]
 
 
 # Returns a double array of the form [problem_1, problem_2, problem_3, ...]
@@ -335,14 +349,16 @@ def get_all_usernames_on_project_euler():
 
 
 # returns a list of the form [username1, username2, username3, ...]
-def get_all_members_who_solved(problem):
+def get_all_members_who_solved(problem: int):
 
     solvers = []
 
     profiles = get_all_profiles_on_project_euler()
+
     for profile in profiles:
-        #print(profile)
-        if profile[6][problem - 1] == "1":
+
+        # Make sure the problem can be retrieved from the user
+        if (len(profile[6]) > problem - 1) and (profile[6][problem - 1] == "1"):
             solvers.append(profile[0])
 
     return solvers
@@ -364,7 +380,7 @@ def problems_of_member(username):
 
     member_solves = members[usernames.index(username)][6]
 
-    print(member_solves)
+    return member_solves
 
 
 # returns an array like [32, '1111110111111111111001011101101011|11111']
