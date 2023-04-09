@@ -364,6 +364,23 @@ def get_all_members_who_solved(problem: int):
     return solvers
 
 
+# Essentially does the same thing as get_all_members_who_solved, but returns the entire profiles
+# Returns a list with format [[username1: str, discord_id1: str], [username2: str, discord_id2: str], ....]
+def get_all_discord_profiles_who_solved(problem: int):
+
+    solvers = []
+
+    profiles = get_all_profiles_in_database()
+
+    for k in profiles.keys():
+        profile = profiles[k]
+        
+        if len(profile["solve_list"]) >= problem and profile["solve_list"][problem - 1] == "1" and profile["discord_id"] != "":
+            solvers.append([profile["username"], profile["discord_id"]])
+
+    return solvers
+
+
 # return a binary string like 111110001100... with every 1 marking a solve
 def problems_of_member(username):
 
@@ -437,6 +454,11 @@ def update_awards(username):
 def all_members_in_database():
     data = dbqueries.single_req("SELECT username FROM members;")
     return list(map(lambda x: x["username"], [data[k] for k in data.keys()]))
+
+
+# returns a list of all the profiles in the database 
+def get_all_profiles_in_database():
+    return dbqueries.single_req("SELECT * FROM members;")
 
 
 # return a list of all the names of the awards

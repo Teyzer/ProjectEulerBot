@@ -59,6 +59,7 @@ AWARDING_SENTENCES = [
     "{0} solved the problem #{1}: '{2}' which has been solved by {3} people, well done!"
 ]
 
+THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
 
 # Where solve = [Account, Array of solves, Discord ID, Level] as returned by pe_api.keep_session_alive(),
 # returns a nicely formatted string for the user, including a discord @ if it exists.
@@ -389,8 +390,8 @@ async def on_message(message):
         await message.channel.send("The & command is not supported anymore please use the slash commands with /")
 
 @bot.slash_command(name="whosolved", description="Display a list of members who solved a particular problem")
-@option("problem", description="The problem", default=None)
-async def command_profile(ctx, problem: int):
+@option("problem", description="The problem")
+async def command_whosolved(ctx, problem: int):
 
     await ctx.defer()
 
@@ -410,7 +411,7 @@ async def command_profile(ctx, problem: int):
 @option("first_member", description="The first member you want to compare the solves of")
 @option("second_member", description="The second member you want to compare the solves of")
 @option("max_display", description="The maximum displayed number of problems", default=30, min_value=1, max_value=100)
-async def command_profile(ctx, first_member: discord.User, second_member: discord.User, max_display: int):
+async def command_compare(ctx, first_member: discord.User, second_member: discord.User, max_display: int):
 
     await ctx.defer()
 
@@ -458,6 +459,58 @@ async def command_profile(ctx, first_member: discord.User, second_member: discor
 
     return await ctx.respond(response_text)
 
+
+@bot.slash_command(name="thread", description="Create a private thread for a specific problem")
+@option("problem", description="The problem you wish to open a thread for", min_value=1)
+async def command_thread(ctx, problem: int):
+
+    last_pb = pe_api.last_problem()
+    
+    # Just to ensure there's no unused thread
+    if problem > last_pb:
+        return await ctx.respond("This problem has not been published yet. Please try another one.")
+    
+    # Get the list of the threads objects on the server where the command was used
+    available_threads = ctx.guild.threads
+    thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
+
+    # If a thread already exists (check only with the name), then simply create a new link to it 
+    if thread_name in list(map(lambda element: element.name, available_threads)):
+        button_view = inters.problem_thread_view(problem_number=problem)
+        return await ctx.respond("A thread has already been opened for this problem. You can join it here:", view=button_view)
+    
+    # Otherwise, create the thread
+    thread_object = await ctx.channel.create_thread(name=thread_name, type=discord.ChannelType.private_thread, auto_archive_duration=60)
+    
+    # Make it impossible for non-moderator to invite people 
+    await thread_object.edit(invitable=False)
+
+    # Send the first message of the thread
+    await thread_object.send("Start of the discussion for problem #{0}, only opened to the solvers :)".format(problem))
+    
+    # Retrieve the button object with the correct problem numbers
+    button_view = inters.problem_thread_view(problem_number=problem)
+
+    # Send the button
+    await ctx.respond("Click the button below to join the appropriate thread!", view=button_view)
     
 
+@bot.slash_command(name="list-threads", description="Show a list of available threads")
+async def command_list_threads(ctx):
+
+    # Get the list of all available threads, and retrieve only their name
+    available_threads = list(map(lambda element: element.name, ctx.guild.threads)) 
+
+    # Keep only those that fit the name for the threads created by the bot
+    available_threads = list(filter(lambda element: "Problem #" in element and "discussion" in element, available_threads))
     
+    # And split it in order to only get the numbers
+    available_threads = list(map(lambda element: element.split()[1], available_threads))
+
+    # Just in case threads expire
+    if len(available_threads) == 0:
+        available_threads.append("None actually")
+
+    available_message = "Here are the problems with an open thread: ```" + ", ".join(available_threads) + "```"
+
+    return await ctx.respond(available_message)
