@@ -2,10 +2,15 @@ import plotly.express as px
 import plotly.io as pio
 
 import pe_api
+import pe_image
 import dbqueries
 
 import datetime
 import pytz
+import time
+
+import os
+import glob
 
 
 # Called when started
@@ -52,8 +57,60 @@ def graph_solves(day_counts: int, local: bool, smoothing = 1):
     return save_location
 
 
+def generate_individual_graph(file_content: str, username: str) -> str:
+    
+    seperator = ","
+    project_euler_time_format = "%d %b %y (%H:%M)"
+    #fixed_origin = datetime.datetime(1970, 1, 1, 0, 0, 0)
+
+    path = f"graphs/{username}/"
+
+    try:
+        os.mkdir(path)
+    except:
+        files = glob.glob(path + "*")
+        for f in files:
+            os.remove(f)
+
+
+    frame_count = 100
+
+    file_content = file_content.split("\n")
+    solves = list(map(lambda l: l.split(seperator), file_content))
+
+    solves = list(filter(lambda element: len(element) > 1, solves))
+
+    for i in range(len(solves)):
+        solves[i] = [int(solves[i][1]), datetime.datetime.strptime(solves[i][0], project_euler_time_format)]
+
+    solves = solves[::-1]
+
+    current_timestamp = solves[0][1].timestamp()
+    difference = (solves[-1][1] - solves[0][1]).total_seconds() + 1000
+
+    last_pb = pe_api.last_problem()
+
+    for percentage in range(frame_count + 1):
+        current_timestamp = solves[0][1].timestamp() + difference * percentage / frame_count
+        pe_image.image_for_timestamp_user_solve(solves, current_timestamp, username, percentage, frame_count, last_pb)
+
+    pe_image.concatenate_image_gif(username)
+
+    return f"graphs/{username}/{username}.gif"
+
+
+
 if __name__ == "__main__":
 
-    dbqueries.setup_database_keys()
-    graph_start()
-    graph_solves(100)
+    #dbqueries.setup_database_keys()
+    # graph_start()
+    # graph_solves(100)
+
+    with open("Teyzer18_history_2023_04_24_1743.csv", "r") as f:
+        content = "".join(f.readlines())
+
+    tic = time.time()
+
+    generate_individual_graph(content, "Teyzer18")
+
+    print(time.time() - tic)

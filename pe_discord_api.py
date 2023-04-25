@@ -12,9 +12,14 @@ import pe_api
 import pe_image
 import pe_plot
 
+import requests
+
 import interactions_discord as inters
 import discord
 from discord import option
+
+import glob
+import os
 
 TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
@@ -388,6 +393,28 @@ async def on_message(message):
 
     if message.content.startswith(PREFIX):
         await message.channel.send("The & command is not supported anymore please use the slash commands with /")
+
+    if len(message.attachments) > 0:
+        
+        main_attach = message.attachments[0]
+        if "history" in main_attach.filename and "csv" in main_attach.filename:
+            
+            filename = main_attach.filename
+            username = filename.split("_")[0]
+            file_url = main_attach.url
+
+            content = requests.get(file_url).text
+            file_path = pe_plot.generate_individual_graph(content, username)
+
+            await message.channel.send("", file=discord.File(file_path))
+
+            path = f"graphs/{username}/"
+            files = glob.glob(path + "*")
+            for f in files:
+                os.remove(f)
+
+
+
 
 @bot.slash_command(name="whosolved", description="Display a list of members who solved a particular problem")
 @option("problem", description="The problem")
