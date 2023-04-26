@@ -181,6 +181,15 @@ def problem_def(n):
     return specs
 
 
+# Return array of the form [problem_1, problem_2, ...., problem_last]
+# With each problem being of the kind ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
+# Careful as all values in the array are string, not ints
+def problems_list():
+    data = req_to_project_euler(BASE_URL.format("problems"), False).split("\n")
+    data = list(map(lambda element: element.replace("\r", "").split("##"), data))
+    return data
+
+
 # Return last problem available, including the ones in the recent tab
 def last_problem():
     data = req_to_project_euler(BASE_URL.format("problems"))

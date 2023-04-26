@@ -400,7 +400,7 @@ async def on_message(message):
         if "history" in main_attach.filename and "csv" in main_attach.filename:
             
             filename = main_attach.filename
-            username = filename.split("_")[0]
+            username = filename.split("_history")[0]
             file_url = main_attach.url
 
             content = requests.get(file_url).text

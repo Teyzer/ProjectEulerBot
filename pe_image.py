@@ -4,6 +4,8 @@ import requests
 
 import datetime
 
+from collections import deque
+
 import glob
 
 
@@ -142,9 +144,11 @@ def add_day_timestamp(image, data: list, timestamp: float, frame: int, total_fra
     splits = 24
     cp = [(46, 127, 24), (200, 37, 56)][::-1] # color palette
 
+    minimal_date = datetime.datetime(1990, 1, 1, 0, 0, 0)
+
     heat_map = [0 for _ in range(splits)]
     
-    solves_at_this_point = list(filter(lambda element: element[1].timestamp() < timestamp, data))
+    solves_at_this_point = list(filter(lambda element: minimal_date.timestamp() < element[1].timestamp() < timestamp, data))
     timestamps = list(map(lambda element: element[1], solves_at_this_point))
     
     for t in timestamps:
@@ -166,12 +170,27 @@ def add_max_solve(image, data: list, timestamp: float, frame: int, total_frame: 
     best = 0
     day_duration = 86400
 
-    for element in data:
-        if element[1].timestamp() > timestamp:
+    queue = deque()
+
+    minimal_date = datetime.datetime(1980, 1, 1, 0, 0, 0)
+
+    for element in data: 
+        d = element[1]
+        if (d - minimal_date).total_seconds() < 1000:
+            continue
+        if d.timestamp() > timestamp:
             break
-        current = len(list(filter(lambda el: el[1].timestamp() < timestamp and element[1].timestamp() > el[1].timestamp() and element[1].timestamp() - el[1].timestamp() < day_duration, data)))
-        if current > best:
-            best = current
+        queue.append(d)
+        while d.timestamp() - queue[0].timestamp() > day_duration:
+            queue.popleft()
+        if len(queue) > best:
+            best = len(queue)
+        
+        # if element[1].timestamp() > timestamp:
+        #     break
+        # current = len(list(filter(lambda el: el[1].timestamp() < timestamp and element[1].timestamp() > el[1].timestamp() and element[1].timestamp() - el[1].timestamp() < day_duration, data)))
+        # if current > best:
+        #     best = current
 
     draw = ImageDraw.Draw(image, "RGBA")
     draw.rectangle(((390, 310), (580, 330)), outline=(255, 255, 255), fill=(0, 0, 0), width=1)
@@ -205,11 +224,12 @@ def image_for_timestamp_user_solve(data: list, timestamp: float, username: str, 
     solves_at_this_point = set(solves_at_this_point)
     
     image = Image.new('RGB', dimensions)
+    draw = ImageDraw.Draw(image, "RGB")
+    draw.rectangle(((0, 0), dimensions), (0, 0, 0))
 
     for i in range(1, last_pb + 1):
         add_box_user_solve(i, i in solves_at_this_point, image)
 
-    draw = ImageDraw.Draw(image, "RGBA")
     draw.rectangle(((3*100 + 6*10, 20), (3*100 + 6*10 + 20, dimensions[1] - 20)))
 
     text_adder(image, "Time", (255, 255, 255), (390, 20), 15)
@@ -239,10 +259,14 @@ def concatenate_image_gif(username: str):
     save_path = f"graphs/{username}/{username}.gif"
 
     gif = []
+
     for image in images:
         img = Image.open(image)
-        gif.append(img.convert("P",palette=Image.ADAPTIVE))
-    gif[0].save(save_path, save_all=True,optimize=False, append_images=gif[1:], loop=0)
+        gif.append(img.convert("P", palette=Image.ADAPTIVE))
+    
+    print(len(gif))
+
+    gif[0].save(save_path, save_all=True, optimize=False, append_images=gif[1:], disposal=2, loop=0, transparency=True)
 
 
 if __name__ == '__main__':

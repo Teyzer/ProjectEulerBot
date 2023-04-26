@@ -11,6 +11,7 @@ import time
 
 import os
 import glob
+import shutil
 
 
 # Called when started
@@ -61,7 +62,6 @@ def generate_individual_graph(file_content: str, username: str) -> str:
     
     seperator = ","
     project_euler_time_format = "%d %b %y (%H:%M)"
-    #fixed_origin = datetime.datetime(1970, 1, 1, 0, 0, 0)
 
     path = f"graphs/{username}/"
 
@@ -72,27 +72,40 @@ def generate_individual_graph(file_content: str, username: str) -> str:
         for f in files:
             os.remove(f)
 
-
     frame_count = 100
+    additional_frame_count = 25
 
     file_content = file_content.split("\n")
     solves = list(map(lambda l: l.split(seperator), file_content))
 
     solves = list(filter(lambda element: len(element) > 1, solves))
 
-    for i in range(len(solves)):
-        solves[i] = [int(solves[i][1]), datetime.datetime.strptime(solves[i][0], project_euler_time_format)]
+    minimal_date = datetime.datetime(1980, 1, 1, 0, 0, 0)
+    converter = lambda el: minimal_date if "date" in el else datetime.datetime.strptime(el, project_euler_time_format)
 
+    for i in range(len(solves)):
+        solves[i] = [int(solves[i][1]), converter(solves[i][0])]
     solves = solves[::-1]
 
-    current_timestamp = solves[0][1].timestamp()
-    difference = (solves[-1][1] - solves[0][1]).total_seconds() + 1000
+    temp_epsilon = 1000
 
-    last_pb = pe_api.last_problem()
+    starting_timestamp = list(filter(lambda el: el[1].timestamp() - temp_epsilon > minimal_date.timestamp(), solves))[0][1].timestamp()
+    difference = solves[-1][1].timestamp() - starting_timestamp + temp_epsilon
+
+    problems = pe_api.problems_list()[1:-1]
 
     for percentage in range(frame_count + 1):
-        current_timestamp = solves[0][1].timestamp() + difference * percentage / frame_count
+        current_timestamp = starting_timestamp + difference * percentage / frame_count
+        last_pb = len(list(filter(lambda el: float(el[2]) < current_timestamp, problems)))
         pe_image.image_for_timestamp_user_solve(solves, current_timestamp, username, percentage, frame_count, last_pb)
+
+    for addition in range(1, additional_frame_count + 1):
+        current_timestamp = starting_timestamp + difference
+        last_pb = len(problems)
+        pe_image.image_for_timestamp_user_solve(solves, current_timestamp, username, percentage, frame_count, last_pb)
+
+    for addition in range(1, additional_frame_count + 1):
+        shutil.copyfile(f"graphs/{username}/frame{frame_count}.png", f"graphs/{username}/frame{frame_count + addition}.png")
 
     pe_image.concatenate_image_gif(username)
 
@@ -106,7 +119,7 @@ if __name__ == "__main__":
     # graph_start()
     # graph_solves(100)
 
-    with open("Teyzer18_history_2023_04_24_1743.csv", "r") as f:
+    with open("pjt33_history_2023_04_25_2325.csv", "r") as f:
         content = "".join(f.readlines())
 
     tic = time.time()
