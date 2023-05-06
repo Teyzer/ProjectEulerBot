@@ -185,12 +185,6 @@ def add_max_solve(image, data: list, timestamp: float, frame: int, total_frame: 
             queue.popleft()
         if len(queue) > best:
             best = len(queue)
-        
-        # if element[1].timestamp() > timestamp:
-        #     break
-        # current = len(list(filter(lambda el: el[1].timestamp() < timestamp and element[1].timestamp() > el[1].timestamp() and element[1].timestamp() - el[1].timestamp() < day_duration, data)))
-        # if current > best:
-        #     best = current
 
     draw = ImageDraw.Draw(image, "RGBA")
     draw.rectangle(((390, 310), (580, 330)), outline=(255, 255, 255), fill=(0, 0, 0), width=1)

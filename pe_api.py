@@ -390,7 +390,8 @@ def get_all_discord_profiles_who_solved(problem: int):
     return solvers
 
 
-# return a binary string like 111110001100... with every 1 marking a solve
+# return a binary string like "111110001100..." with every 1 marking a solve
+# use a project euler request, not a request to the database (should not change anything)
 def problems_of_member(username):
 
     url = BASE_URL.format("friends")

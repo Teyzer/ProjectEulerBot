@@ -20,6 +20,7 @@ from discord import option
 
 import glob
 import os
+import random
 
 TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
@@ -47,6 +48,8 @@ PREFIX = "&"
 # The IDs of the channels in which solves and achievements are announced
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
+
+SOLVE_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142, 1051483511749619722]
 
 # Constants for text
 GREEN_CIRCLE = "🟢"
@@ -147,19 +150,15 @@ async def on_ready():
                     #decide what message to send depending on how many solvers there are
                     if int(data_on_problem[3]) <= 3:
                         sending_message = AWARDING_SENTENCES[int(data_on_problem[3]) - 1].format(nameFormatted, data_on_problem[0], data_on_problem[1])
-                        #sending_message = nameFormatted + " is the first solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
-                    #elif int(data_on_problem[3]) == 2: #include this so we don't have to deal with "1 people" in next section
-                        #sending_message = AWARDING_SENTENCES[1].format(nameFormatted, data_on_problem[1], data_on_problem[1], data_on_problem[3])
-                        #sending_message = nameFormatted + " is the second solver for problem #{0}: '{1}'! Congratulations! <https://projecteuler.net/problem={0}>"
                     else:
                         sending_message = AWARDING_SENTENCES[3].format(nameFormatted, data_on_problem[0], data_on_problem[1], data_on_problem[3])
-                        #sending_message = nameFormatted + " solved the problem #{0}: '{1}' which has been solved by {2} people, well done! <https://projecteuler.net/problem={0}>"
                     sending_message = sending_message + " <https://projecteuler.net/problem={0}>".format(data_on_problem[0]) #.format(data_on_problem[0], data_on_problem[1], data_on_problem[3])
                     await channel.send(sending_message)
 
             # If the member got a new level
             # May need to be corrected, as a double solve in a minute may lead the bot to forget a level
             if int(solve[3]) % 25 == 0:
+                update_member_roles(int(solve[2]), solve[0])
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
                     sending_message = nameFormatted + " has just reached level {}, congratulations!"
@@ -280,6 +279,8 @@ async def command_link(ctx, username: str):
 
     temp_query = "UPDATE members SET discord_id = '{0}' WHERE username = '{1}'".format(discord_user_id, username)
     dbqueries.single_req(temp_query)
+
+    await update_member_roles(discord_user_id, username)
 
     return await ctx.respond("Your account was linked to `{0}`!".format(username))
 
@@ -506,8 +507,15 @@ async def command_thread(ctx, problem: int):
         button_view = inters.problem_thread_view(problem_number=problem)
         return await ctx.respond("A thread has already been opened for this problem. You can join it here:", view=button_view)
     
-    # Otherwise, create the thread
-    thread_object = await ctx.channel.create_thread(name=thread_name, type=discord.ChannelType.private_thread, auto_archive_duration=60)
+    # Otherwise, find the appropriate channel
+    adapted_channel = ctx.channel
+    for chan in ctx.guild.channels:
+        if chan.name == "problem-discussion":
+            adapted_channel = chan
+            break
+    
+    # Then create the thread in it
+    thread_object = await adapted_channel.create_thread(name=thread_name, type=discord.ChannelType.private_thread, auto_archive_duration=60)
     
     # Make it impossible for non-moderator to invite people 
     await thread_object.edit(invitable=False)
@@ -541,3 +549,62 @@ async def command_list_threads(ctx):
     available_message = "Here are the problems with an open thread: ```" + ", ".join(available_threads) + "```"
 
     return await ctx.respond(available_message)
+
+
+@bot.slash_command(name="randproblem", description="Give a random problem the user has not solved")
+@option("member", description="The targetted member", default=None)
+async def command_profile(ctx, member: discord.User):
+
+    await ctx.defer()
+
+    if member is None:
+        member = ctx.author
+
+    discord_id = member.id
+
+    connection = dbqueries.open_con()
+    if not pe_api.is_discord_linked(discord_id, connection):
+        dbqueries.close_con(connection)
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+
+    username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
+    dbqueries.close_con(connection)
+
+    problems = pe_api.unsolved_problems(username)
+    choice = random.choice(problems)
+
+    text_message = "I randomly selected problem #{0} for user `{1}`: \"{2}\". <https://projecteuler.net/problem={0}>"
+    text_message = text_message.format(choice[0], username, choice[1])
+
+    return await ctx.respond(text_message)
+    
+
+""" 
+FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD 
+"""
+
+async def update_member_roles(discord_id, username):
+
+    guild = bot.get_guild(PROJECT_EULER_SERVER)
+    member = guild.get_member(discord_id)
+
+    roles = member.roles
+    
+    solve_count = pe_api.problems_of_member(username).count("1")
+
+    solve_index = (solve_count // 100) if solve_count < 900 else 8
+    appropriate_role = guild.get_role(SOLVE_ROLES[solve_index])
+
+    found_appropriate = False
+    to_remove = []
+
+    for role in roles:
+        if role.id in SOLVE_ROLES:
+            if role.id == appropriate_role.id:
+                found_appropriate = True
+            else:
+                to_remove.append(role)
+
+    await member.remove_roles(*to_remove)
+    if not found_appropriate:
+        await member.add_roles(appropriate_role)
