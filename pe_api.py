@@ -68,7 +68,7 @@ def keep_session_alive():
     all_solved = []
 
     # Format data to get into the database
-    format_func = lambda x: x.replace("C#", "Csharp").replace("F#", "Fsharp").split("##") 
+    format_func = lambda x: x.replace("C###", "Csharp##").replace("F###", "Fsharp##").split("##") 
 
     # Go take a look for yourself of https://projecteuler.net/minimal=friends, you may understand better how is data formatted
     members = list(map(format_func, data.split("\n")))
@@ -84,7 +84,7 @@ def keep_session_alive():
     # Assert that there is no error in the retrieve
     if len(names) < 10:
         return None
-
+    #print(data)
     for member in members:
 
         # For the last line of the retrieved data, which is only a blank line
@@ -94,7 +94,7 @@ def keep_session_alive():
         # Format member: [Account, Nickname, Country, Solves Count, Level, Binary String of solves]
         # A cell of format members is "" if the members has not set the optional parameter
         format_member = list(map(lambda x: x if x != "" else "Undefined", member))
-
+        # print(format_member)
         # By default, a member of level 0 does not even have their level displayed on the API
         format_member[4] = (format_member[4] if format_member[4] != "Undefined" else '0')
         format_member[6] = format_member[6].replace("\r", "")

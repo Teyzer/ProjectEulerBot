@@ -502,6 +502,8 @@ async def command_thread(ctx, problem: int):
     available_threads = ctx.guild.threads
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
+    #print(available_threads)
+
     # If a thread already exists (check only with the name), then simply create a new link to it 
     if thread_name in list(map(lambda element: element.name, available_threads)):
         button_view = inters.problem_thread_view(problem_number=problem)
