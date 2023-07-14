@@ -143,7 +143,7 @@ async def on_ready():
         if len(profiles) == 0:
             continue
         
-        pe_events.update_events(profiles)
+        event = pe_events.eventSoPE()
         
         problems: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()
         awards_specs = pe_api.get_awards_specs()
@@ -167,7 +167,11 @@ async def on_ready():
                         sending_message = AWARDING_SENTENCES[problem.solves - 1].format(member.username_ping(), problem.problem_id, problem.name)
                     else:
                         sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id, problem.name, problem.solves)
-                    sending_message = sending_message + " <https://projecteuler.net/problem={0}>".format(problem.problem_id)
+                        
+                    # this is a temporary code to add stars
+                    optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
+                    
+                    sending_message = sending_message + optional_stars + " <https://projecteuler.net/problem={0}>".format(problem.problem_id)
                     await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
                 
             if member.solve_count() % 25 == 0:
@@ -192,6 +196,10 @@ async def on_ready():
                         await channel.send(f"{member.username_ping()} got the award '{award_name}', congratulations!", 
                                            allowed_mentions = discord.AllowedMentions(users=False))
                 
+                
+        pe_events.update_events(profiles)
+
+
 
 """ 
 COMMANDS 
@@ -611,7 +619,7 @@ async def command_events(ctx, event: str, page: int):
         list_data = list_data[page_size * (page - 1) : page_size * page]
         
         text_message = f"Here is the page n°{page} for the event {event}:"
-        text_message += "```" + "\n".join([f"{page_size * (page - 1) + i + 1}: {list_data[i][0]} with {list_data[i][1]} points" for i in range(len(list_data))]) + "```"
+        text_message += "```c\n" + "\n".join([f"{page_size * (page - 1) + i + 1}: {list_data[i][0]} with {list_data[i][1]} points" for i in range(len(list_data))]) + "```"
         
         await ctx.respond(text_message)
     
