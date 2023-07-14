@@ -15,3 +15,6 @@ if __name__ == '__main__':
     key = key.replace("\n", "").replace("\r", "")
 
     pe_discord_api.bot.run(key)
+    
+    
+    

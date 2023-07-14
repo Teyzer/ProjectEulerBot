@@ -115,10 +115,6 @@ def generate_individual_graph(file_content: str, username: str) -> str:
 
 if __name__ == "__main__":
 
-    #dbqueries.setup_database_keys()
-    # graph_start()
-    # graph_solves(100)
-
     with open("pjt33_history_2023_04_25_2325.csv", "r") as f:
         content = "".join(f.readlines())
 

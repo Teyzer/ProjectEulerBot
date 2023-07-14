@@ -131,9 +131,14 @@ def problem_thread_view(problem_number: int):
             return await interaction.followup.send("Sorry, you did not solve problem #{0}. If you did solve it, please link your account first".format(problem_number), ephemeral=True)
             
         # Otherwise, iterate through available threads, and when the name matches, add the user to the list of participants
-        availabe_threads = interaction.guild.threads
+        availabe_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id) 
         for th in availabe_threads:
+            
             if th.name == pe_discord_api.THREAD_DEFAULT_NAME_FORMAT.format(problem_number):
+                
+                if th.archived:
+                    await th.unarchive()
+                
                 await th.add_user(pe_discord_api.bot.get_user(interaction.user.id))
                 break 
 

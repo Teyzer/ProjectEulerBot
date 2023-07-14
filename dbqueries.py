@@ -4,10 +4,15 @@ import datetime
 
 import phone_api
 
+import pe_api
+
 credentials_server = {"user": "euler_remote", "db": "euler"}
 credentials_remote = credentials_server
 
 MYSQL_KEYFILE = "database_key.txt"
+
+DB_TOTAL_REQUESTS = 0
+DB_SESSION_REQUESTS = 0
 
 
 def setup_database_keys():
@@ -47,18 +52,28 @@ def open_con(running_server=True):
 
 
 def query(_query, con):
+
+    global DB_SESSION_REQUESTS, DB_TOTAL_REQUESTS 
+    
+    DB_SESSION_REQUESTS += 1
+    DB_TOTAL_REQUESTS += 1
+    
     back = True
+    
     if con is None or con is False:
         phone_api.bot_crashed("Error while querying database")
         return {}
+    
     cur = con.cursor()
     cur.execute(_query)
+    
     if _query[:6] == "SELECT":
         back = cur.fetchall()
         field_names = [i[0] for i in cur.description]
         back = to_json(back, field_names)
     elif _query[:6] == "INSERT" or _query[:6] == "UPDATE":
         con.commit()
+    
     cur.close()
     return back
 
@@ -79,6 +94,14 @@ def to_json(_object, headers):
             else:
                 new_obj[index1][headers[index2]] = column
     return new_obj
+
+
+def option_query(_query, connection=None):
+    if connection is None:
+        return single_req(_query)
+    else:
+        return query(_query, connection)
+
 
 
 if __name__ == "__main__":
