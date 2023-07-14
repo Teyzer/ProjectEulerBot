@@ -1,5 +1,7 @@
 import discord
 import asyncio
+import pe_discord_api
+import pe_api
 
 INTER_ROLES_SLEEP = 0.7
 
@@ -12,6 +14,7 @@ LANGUAGES_ROLES = {
     "Haskell": [979775640876236822, "🍛", None],
     "Java": [979775476606304286, "☕", None],
     "Julia": [1022102165176729660, "🫐", None],
+    "Kotlin": [1082412233608409148, "🍵", None],
     "Lua": [979776205467316275, "🌕", None],
     "Mathematica": [979775980841357342, "🔢", None],
     "Matlab": [979776087703822366, "🧪", None],
@@ -108,3 +111,41 @@ class DropdownView(discord.ui.View):
 
         # Initializing the view and adding the dropdown can actually be done in a one-liner if preferred:
         # super().__init__(Dropdown(self.bot))
+
+
+def problem_thread_view(problem_number: int):
+
+    # Create the button object
+    button = discord.ui.Button(label="Join thread for #{0} !".format(problem_number), style=discord.ButtonStyle.primary)
+
+    # This is the function that will be called back when someone clicks a button
+    async def button_callback(interaction: discord.Interaction):
+        
+        await interaction.response.defer()
+        
+        allowed_members = pe_api.get_all_discord_profiles_who_solved(problem=problem_number)
+        allowed_discord_ids = list(map(lambda element: int(element[1]), allowed_members))
+
+        # If the user did not solve, send an "ephemeral" message that only them will be able to sees
+        if int(interaction.user.id) not in allowed_discord_ids:
+            return await interaction.followup.send("Sorry, you did not solve problem #{0}. If you did solve it, please link your account first".format(problem_number), ephemeral=True)
+            
+        # Otherwise, iterate through available threads, and when the name matches, add the user to the list of participants
+        availabe_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id) 
+        for th in availabe_threads:
+            
+            if th.name == pe_discord_api.THREAD_DEFAULT_NAME_FORMAT.format(problem_number):
+                
+                if th.archived:
+                    await th.unarchive()
+                
+                await th.add_user(pe_discord_api.bot.get_user(interaction.user.id))
+                break 
+
+    # Add the method to the button object
+    button.callback = button_callback
+    
+    # Timeout none should make the interaction never expire
+    view = discord.ui.View(timeout=None)
+    view.add_item(button)
+    return view
