@@ -12,6 +12,8 @@ import pe_api
 import pe_image
 import pe_plot
 import pe_events
+import re
+import itertools
 
 import requests
 
@@ -403,6 +405,14 @@ async def on_message(message):
 
     if message.content.startswith(PREFIX):
         await message.channel.send("The & command is not supported anymore please use the slash commands with /")
+
+    search = re.finditer("#(\d+)", message.content)
+    message_problems = set([int(k.group(0)[1:]) for k in search if k.group(0)[1:].isnumeric()])
+    for problem_id in itertools.islice(message_problems, 10):
+        if problem_id <= 0 or problem_id > pe_api.last_problem():
+            continue
+        problem_embed = discord.Embed(description=f"[#{problem_id}](https://projecteuler.net/problem={problem_id})")
+        await message.channel.send(embed=problem_embed)
 
     if len(message.attachments) > 0:
         
