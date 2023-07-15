@@ -411,7 +411,7 @@ async def on_message(message):
     for problem_id in itertools.islice(message_problems, 10):
         if problem_id <= 0 or problem_id > pe_api.last_problem():
             continue
-        problem_embed = discord.Embed(description=f"[#{problem_id}](https://projecteuler.net/problem={problem_id})")
+        problem_embed = discord.Embed(description=f"[Open problem #{problem_id} in web browser](https://projecteuler.net/problem={problem_id})")
         await message.channel.send(embed=problem_embed)
 
     if len(message.attachments) > 0:
