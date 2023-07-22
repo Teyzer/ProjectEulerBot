@@ -159,7 +159,8 @@ async def on_ready():
             for problem_id in solves:
                 
                 problem: pe_api.PE_Problem = problems[problem_id - 1]
-                
+                pe_api.push_solve_to_database(member, problem)
+
                 for channel_id in CHANNELS_TO_ANNOUNCE:
                     
                     channel = bot.get_channel(channel_id)
@@ -194,7 +195,7 @@ async def on_ready():
                 for award in awards[part]:
                     for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                         channel = bot.get_channel(channel_id)
-                        award_name = awards_specs[part][award - 1]
+                        award_name = awards_specs[part][award]
                         await channel.send(f"{member.username_ping()} got the award '{award_name}', congratulations!", 
                                            allowed_mentions = discord.AllowedMentions(users=False))
                 
@@ -628,7 +629,7 @@ async def command_events(ctx, event: str, page: int):
         list_data = sorted(list_data, key=lambda element: element[1], reverse=True)
         list_data = list_data[page_size * (page - 1) : page_size * page]
         
-        text_message = f"Here is the page n°{page} for the event {event}:"
+        text_message = f"Here is the page n°{page} out of {(len(data.keys()) + 14) // page_size} for the event {event}:"
         text_message += "```c\n" + "\n".join([f"{page_size * (page - 1) + i + 1}: {list_data[i][0]} with {list_data[i][1]} points" for i in range(len(list_data))]) + "```"
         
         await ctx.respond(text_message)
@@ -639,9 +640,59 @@ async def command_events(ctx, event: str, page: int):
 async def command_events_data(ctx, event: str):
     
     await ctx.defer()
-    return await ctx.respond("", file=discord.File(f"events/{event}/data.json"))
+
+    fls = [f"events/{event}/data.json"]
     
+    if event == "SoPE":
+        
+        ev = pe_events.eventSoPE()
+        solves = list(map(int, ev.data["solves"].keys()))
+        
+        grid_image = pe_image.project_euler_grid(solves)
+        fls.append(grid_image)
+
+        await ctx.respond("", file=discord.File(fls[1]))
     
+        os.remove(grid_image)
+
+
+@bot.slash_command(name="grid", description="Get the solve grid of an user")
+@option("member", description="The targetted user", default = None)
+async def commmand_grid(ctx, member: discord.User):
+
+    await ctx.defer()
+
+    m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
+
+    if not m.is_discord_linked():
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+
+    solves = []
+    for id, b in enumerate(m.solve_array()):
+        if b == True:
+            solves.append(id + 1)
+
+    grid_image = pe_image.project_euler_grid(solves)
+    
+    await ctx.respond(f"Here is the grid for user `{m.username()}`", file=discord.File(grid_image))
+    os.remove(grid_image)
+    
+
+@bot.slash_command(name="has-been-claimed", description="Get the status")
+@option("problem", description="Which problem", min=1)
+async def command_has_been_claimed(ctx, problem: int):
+
+    await ctx.defer()
+
+    ev = pe_events.eventSoPE()
+
+    if ev.is_problem_solved(problem):
+        claimer = pe_api.Member(_username = ev.data["solves"][str(problem)]["username"])
+        return await ctx.respond(f"Problem {problem} has already been claimed by {claimer.username_ping()} (SoPE event)", allowed_mentions = discord.AllowedMentions(users = False))
+    else:
+        return await ctx.respond(f"Problem {problem} has not been claimed yet (SoPE event)")
+
+
 
 """ 
 FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD 
@@ -691,5 +742,4 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
 
 if __name__ == "__main__":
     
-    # a = 
-    pass
+    print(pe_api.get_awards_specs())

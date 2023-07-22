@@ -133,7 +133,7 @@ class Member:
         self._language = _language
         self._level = _level
         
-        self._discord_id = str(_discord_id)
+        self._discord_id = None if _discord_id is None else str(_discord_id)
         
         self._pe_solve_count = _solve_count
         self._pe_solve_array = _solve_array
@@ -984,6 +984,21 @@ def keep_session_alive():
     return all_solved
 
 
+
+def push_solve_to_database(member: Member, solve: PE_Problem):
+
+    pb_def = problem_def(solve.problem_id)
+    position = pb_def[3]
+
+    temp_query = "INSERT INTO solves (member, problem, solve_date, position) VALUES ('{0}', {1}, NOW(), {2})"
+    temp_query = temp_query.format(member.username(), solve.problem_id, position)
+    dbqueries.single_req(temp_query)
+
+
+
+
+
+
 # Return array of the form ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 # Careful as all values in the array are string, not ints
 def problem_def(n):
@@ -1457,7 +1472,6 @@ if __name__ == "__main__":
     # print(m.get_new_kudos())
     # print(m.push_kudo_to_database())
     
-    update_process()
     # print(m.get_new_solves())
     # print(m.pe_award_array())
     # print(m.push_basics_to_database())

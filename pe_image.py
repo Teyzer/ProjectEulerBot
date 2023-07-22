@@ -3,10 +3,12 @@ from io import BytesIO
 import requests
 
 import datetime
+import pe_api
 
 from collections import deque
 
 import glob
+import os
 
 
 # create Image object
@@ -263,5 +265,32 @@ def concatenate_image_gif(username: str):
     gif[0].save(save_path, save_all=True, optimize=False, append_images=gif[1:], disposal=2, loop=0, transparency=True)
 
 
+
+def project_euler_grid(cells_to_fill: list) -> str:
+
+    dimensions = (360, 360)
+
+    img = Image.new("RGB", dimensions)
+    draw = ImageDraw.Draw(img, "RGB")
+    draw.rectangle(((0, 0), dimensions), (0, 0, 0))
+
+    last_problem = pe_api.last_problem()
+
+    fill_option = [False for i in range(last_problem + 1)]
+    for cell in cells_to_fill:
+        fill_option[cell] = True
+
+    for problem in range(1, last_problem + 1):
+        add_box_user_solve(problem, fill_option[problem], img)
+
+    path = "images_saves/temp/"
+    sz = len(os.listdir(path))
+    path = path + f"temp{sz}.png"
+
+    img.save(path)
+    return path
+
+
+
 if __name__ == '__main__':
-    pass
+    project_euler_grid([15, 100])
