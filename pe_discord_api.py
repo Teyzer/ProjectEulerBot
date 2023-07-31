@@ -62,6 +62,7 @@ SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 THREADS_CHANNEL = 904251551474942002
 
 SOLVE_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142, 1051483511749619722]
+PERFECTIONIST_ROLE = 1135697719319609384
 
 # Constants for text
 GREEN_CIRCLE = "🟢"
@@ -182,13 +183,16 @@ async def on_ready():
             if member.solve_count() % 25 == 0:
                 
                 if member.is_discord_linked():
-                    await update_member_roles(member.discord_id(), member.username())
+                    await update_member_roles(member)
                 
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
                     sending_message = member.username_ping() + " has just reached level {0}, congratulations!"
                     sending_message = sending_message.format(member.solve_count() // 25)
                     await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
+
+            if member.is_discord_linked() and member.solve_count() == len(member.solve_array()):
+                await update_member_roles(member)
 
             if awards is None:
                 continue
@@ -295,7 +299,8 @@ async def command_link(ctx, username: str):
     temp_query = "UPDATE members SET discord_id = '{0}' WHERE username = '{1}'".format(discord_user_id, username)
     dbqueries.single_req(temp_query)
 
-    await update_member_roles(discord_user_id, username)
+    m = pe_api.Member(_username = username)
+    await update_member_roles(m)
 
     return await ctx.respond("Your account was linked to `{0}`!".format(username))
 
@@ -731,6 +736,21 @@ async def command_easiest_sope(ctx, member: discord.User, display_nb: int):
     return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username()}` for SoPE:" + lst)
 
 
+@bot.slash_command(name="update-roles")
+@option("member", description="The member that you want to be updated", default = None)
+async def command_update_roles(ctx, member: discord.User):
+
+    # This allows to give more than 3 seconds to execute the command
+    await ctx.defer()
+
+    discord_id = ctx.author.id
+    if member is not None:
+        discord_id = member.id
+
+    m = pe_api.Member(_discord_id = discord_id)
+    await update_member_roles(m)
+
+    return await ctx.respond("I did not crash during the update, that's all I know", ephemeral=True)
 
 
 
@@ -739,31 +759,48 @@ async def command_easiest_sope(ctx, member: discord.User, display_nb: int):
 FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD 
 """
 
-async def update_member_roles(discord_id, username):
+
+async def update_member_roles(m: pe_api.Member):
 
     guild = bot.get_guild(PROJECT_EULER_SERVER)
-    member = guild.get_member(int(discord_id))
+    member = guild.get_member(int(m.discord_id()))
 
     roles = member.roles
     
-    solve_count = pe_api.problems_of_member(username).count("1")
-
-    solve_index = (solve_count // 100) if solve_count < 900 else 8
+    solve_index = (m.solve_count() // 100) if m.solve_count() < 900 else 8
+    
+    # Getting the object roles rather than simply their id
     appropriate_role = guild.get_role(SOLVE_ROLES[solve_index])
+    perfectionist_role = guild.get_role(PERFECTIONIST_ROLE)
 
+    # We check if the member already has the role corresponding to its solve range
     found_appropriate = False
+    found_perfectionnist = False
+
+    # And we cache roles to remove later
     to_remove = []
+    to_add = []
 
     for role in roles:
+
         if role.id in SOLVE_ROLES:
             if role.id == appropriate_role.id:
                 found_appropriate = True
             else:
                 to_remove.append(role)
 
-    await member.remove_roles(*to_remove)
+        if role.id == perfectionist_role.id:
+            found_perfectionnist = True
+
+
+    # Perfectionnist role
+    if not found_perfectionnist and m.solve_count() == len(m.solve_array()):
+        to_add.append(perfectionist_role)
     if not found_appropriate:
-        await member.add_roles(appropriate_role)
+        to_add.append(appropriate_role)
+
+    await member.add_roles(*to_add)
+    await member.remove_roles(*to_remove)
 
 
 async def get_available_threads(guild_id: int, channel_id: int) -> list:
