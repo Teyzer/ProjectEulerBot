@@ -94,6 +94,8 @@ def formatName(solve):
 @bot.event
 async def on_ready():
 
+    # await u()
+
     # Global variables in order to modify them
     global LAST_CHECK_SUCCESS
     global LAST_CHECK_TIME
@@ -180,7 +182,7 @@ async def on_ready():
             if member.solve_count() % 25 == 0:
                 
                 if member.is_discord_linked():
-                    update_member_roles(member.discord_id(), member.username())
+                    await update_member_roles(member.discord_id(), member.username())
                 
                 for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
@@ -249,27 +251,25 @@ async def command_profile(ctx, member: discord.User):
     except:
         pass
 
-    print(profile_url, discord_id)
+    m = pe_api.Member(_discord_id = discord_id)
 
-    connection = dbqueries.open_con()
-    temp_query = "SELECT * FROM members WHERE discord_id = '{0}'".format(discord_id)
-    data = dbqueries.query(temp_query, connection)
-
-    if len(data.keys()) == 0:
-        dbqueries.close_con(connection)
+    if not m.is_discord_linked():
         return await ctx.respond("This user is not linked! Please link your account first")
+    
+    user_data = m.solve_array()
+    rank_in_discord, people_in_discord = m.position_in_discord()
 
-    data = data[0]
+    file_path = pe_image.generate_profile_image(
+        m.username(),
+        m.solve_count(),
+        len(m.solve_array()),
+        rank_in_discord,
+        people_in_discord,
+        sum([1 if x else 0 for x in user_data[-10:]]),
+        profile_url
+    )
 
-    all_data = dbqueries.query("SELECT * FROM members ORDER BY solved DESC;", connection)
-    total = len(all_data.keys())
-    rank = total
-
-    for k in all_data.keys():
-        if str(all_data[k]["discord_id"]) == str(discord_id):
-            rank = k+1
-
-    return await ctx.respond(file = discord.File(pe_image.generate_profile_image(data["username"], data["solved"], len(data["solve_list"]), rank, total, sum(int(x) for x in data["solve_list"][-10:]), profile_url)))
+    return await ctx.respond(file = discord.File(file_path))
 
 
 @bot.slash_command(name="link", description="Link your project euler account and your discord account")
@@ -524,8 +524,6 @@ async def command_thread(ctx, problem: int):
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
-    #print(available_threads)
-
     # If a thread already exists (check only with the name), then simply create a new link to it 
     if thread_name in list(map(lambda element: element.name, available_threads)):
         button_view = inters.problem_thread_view(problem_number=problem)
@@ -594,19 +592,18 @@ async def command_randproblem(ctx, member: discord.User):
 
     discord_id = member.id
 
-    connection = dbqueries.open_con()
-    if not pe_api.is_discord_linked(discord_id, connection):
-        dbqueries.close_con(connection)
+    m = pe_api.Member(_discord_id = discord_id)
+    if not m.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-    username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
-    dbqueries.close_con(connection)
+    if m.solve_count() == len(m.solve_array()):
+        return await ctx.respond(f"I *randomly* selected problem #1729 for user: `{m.username()}`: <https://teyzer.github.io/problem1729/>")
 
-    problems = pe_api.unsolved_problems(username)
+    problems = pe_api.unsolved_problems(m.username())
     choice = random.choice(problems)
 
     text_message = "I randomly selected problem #{0} for user `{1}`: \"{2}\". <https://projecteuler.net/problem={0}>"
-    text_message = text_message.format(choice[0], username, choice[1])
+    text_message = text_message.format(choice[0], m.username(), choice[1])
 
     return await ctx.respond(text_message)
     
@@ -693,6 +690,50 @@ async def command_has_been_claimed(ctx, problem: int):
         return await ctx.respond(f"Problem {problem} has not been claimed yet (SoPE event)")
 
 
+@bot.slash_command(name="easiest-sope", description="Get the easiests problems available in the SoPE")
+@option("member", description="The member you want to use it on", default = None)
+@option("display_nb", description="The number of problem you want dislayed", default=10, min=1, max=25)
+async def command_easiest_sope(ctx, member: discord.User, display_nb: int):
+
+    await ctx.defer()
+
+    discord_id = ctx.author.id
+    if member is not None:
+        discord_id = member.id
+
+    m = pe_api.Member(_discord_id = discord_id)
+
+    if not m.is_discord_linked():
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+
+    problem_specs = pe_api.PE_Problem.complete_list()
+    problem_list = [problem_specs[i - 1] for i in m.unsolved_problems()]
+
+    problems = sorted(
+        problem_list, 
+        key=lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication) ), 
+        reverse=True
+    )
+
+    ev = pe_events.eventSoPE()
+    problems = list(filter(
+        lambda pb: not ev.is_problem_solved(pb.problem_id),
+        problem_list
+    ))
+
+    problems = problems[:display_nb]
+
+    lst = "```" + "\n".join(list(map(
+        lambda pb: f"Problem #{pb.problem_id}: '{pb.name}' solved by {pb.solves} members", 
+        problems
+    ))) + "```"
+
+    return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username()}` for SoPE:" + lst)
+
+
+
+
+
 
 """ 
 FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD 
@@ -701,7 +742,7 @@ FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD
 async def update_member_roles(discord_id, username):
 
     guild = bot.get_guild(PROJECT_EULER_SERVER)
-    member = guild.get_member(discord_id)
+    member = guild.get_member(int(discord_id))
 
     roles = member.roles
     
@@ -741,5 +782,4 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
     
 
 if __name__ == "__main__":
-    
-    print(pe_api.get_awards_specs())
+    pass

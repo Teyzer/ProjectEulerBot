@@ -186,8 +186,11 @@ class Member:
         self._language = undef_func(target_member[3], False)
         self._pe_solve_count = undef_func(target_member[4], True)
         self._level = undef_func(target_member[5], True)
-        self._pe_solve_array = [c == "1" for c in target_member[6]]
-    
+        self._pe_solve_array = [
+            c == "1" for c in 
+            filter(lambda x: x in "01", target_member[6])
+        ]
+
     
     def update_from_award_list(self):
         
@@ -225,8 +228,6 @@ class Member:
 
         soup = BeautifulSoup(post_page.response, 'html.parser')
         div = soup.find(id='posts_made_section')
-        
-        # print(soup)
 
         post_made, kudos_earned = div.find_all("h3")[0].text.split(" / ")
         post_made = int(post_made.split(" ")[2])
@@ -533,6 +534,29 @@ class Member:
         if self._discord_id is None:
             self.update_from_database()
         return self._discord_id
+    
+
+    def position_in_discord(self) -> int:
+        
+        current_rank = 1
+        all_members = Member.members_database()
+        valid_members = 0
+
+        if not self.is_discord_linked():
+            return -1
+
+        m: Member
+        for m in all_members:
+
+            if not m.is_discord_linked():
+                continue
+            valid_members += 1
+
+            if m.solve_count() > self.solve_count():
+                current_rank += 1
+        
+        return [current_rank, valid_members]
+
         
             
     def is_discord_linked(self, connection = None, data = None) -> bool:
@@ -786,6 +810,24 @@ class Member:
             result_list.append(current)
             
         return result_list
+    
+
+    def solved_problems(self):        
+        solves = []
+        for index, solved in enumerate(self.solve_array()):
+            if solved:
+                solves.append(index + 1)
+        return solves
+
+
+    def unsolved_problems(self):        
+        unsolves = []
+        for index, solved in enumerate(self.solve_array()):
+            if not solved:
+                unsolves.append(index + 1)
+        return unsolves
+
+        
 
 
 
@@ -1047,7 +1089,7 @@ def update_kudos(username):
 
     # Get the profile of the user on project euler
     posts_made, kudos_earned, posts_list = get_kudos(username)
-    print(posts_made, kudos_earned, posts_list)
+    # print(posts_made, kudos_earned, posts_list)
 
     # Get the profile of the user in the database
     connection = dbqueries.open_con()
@@ -1071,7 +1113,7 @@ def update_kudos(username):
         
         # Get the data in a nice array [[problemn1, kudos1], ...]
         previous_posts = list(map(lambda x: list(map(int, x.split("n"))), previous["posts_list"].split("|")))
-        print(previous_posts)
+        # print(previous_posts)
 
         # If the total number of kudos has changed
         if previous["kudos"] != kudos_earned:
@@ -1446,41 +1488,16 @@ def update_global_stats():
 if __name__ == "__main__":
     
     dbqueries.setup_database_keys()
-    # m = Member(_discord_id="439143335932854272")
     
-    # # m.update_username_from_discord()
-    
-    # m.update_from_database()
-    # m.update_from_friend_list()
-    
-    # inspect(m, private=True)
-    # p = PE_Problem.complete_list()
-    
-    # m = Member("Teyzer18")
-    
-    # # print(m.pe_solve_array())
-    # # print(m.database_solve_array())
-    
-    
-    # al = Member.members()
-    # print(al)
- 
-    # a = m.get_new_solves()
-    # print(a)
-    
-    m = Member("Teyzer18")
-    # print(m.get_new_kudos())
-    # print(m.push_kudo_to_database())
-    
-    # print(m.get_new_solves())
-    # print(m.pe_award_array())
-    # print(m.push_basics_to_database())
-    # print(m.())
-    
-    # update_process()
-    
-    # print(m.pe_solve_count())
-    # print(m.database_solve_count())
+    x = Member(_username = "Teyzer18")
+    # print(x.unsolved_problems())
+
+    print(PE_Problem.complete_list())
+
+    # z = Member.members()
+    # for m in z:
+    #     m.push_basics_to_database()
+    #     print(m.username())
     
     console.log(TOTAL_REQUESTS, dbqueries.DB_TOTAL_REQUESTS)
     
