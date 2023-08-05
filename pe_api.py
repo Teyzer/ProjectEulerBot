@@ -52,6 +52,7 @@ class ProjectEulerRequest:
                 # Phone API is sending a notifications to Teyzer's phone
                 phone_api.bot_crashed(r.status_code)
                 self.response = None
+                console.log(r.text)
             else:
                 self.response = r.text
 
@@ -319,37 +320,43 @@ class Member:
             raise Exception("Need either a username or a Discord ID")
     
     
+    # Returns the Project Euler username
     def username(self) -> str:
         if self._username is None:
             self.update_from_database()
         return self._username
     
     
+    # Returns the nickame of the account on project euler
     def nickname(self) -> str:
         if self._nickname is None:
             self.update_from_database()
         return self._nickname
     
     
+    # Returns the username formatted for discord codde blocks, along with the discord ping if available
     def username_ping(self) -> str:
         dis_id = self.discord_id()
         if dis_id != "":
             return f"`{self.username()}` (<@{dis_id}>)"
         return f"`{self.username()}`"  
     
-    
+
+    # Returns the country from Project Euler
     def country(self) -> str:
         if self._country is None:
             self.update_from_database()
         return self._country
     
     
+    # Returns the language from Project Euler
     def language(self) -> str:
         if self._language is None:
             self.update_from_database()
         return self._language
     
     
+    # Returns the number of solves made by the member
     def solve_count(self) -> int:
         
         if self._pe_solve_count is not None:
@@ -361,6 +368,7 @@ class Member:
         return self._database_solve_count
     
     
+    # -
     def pe_solve_count(self) -> int:
         
         if self._pe_solve_count is not None:
@@ -369,7 +377,8 @@ class Member:
         self.update_from_friend_list()
         return self._pe_solve_count
         
-        
+
+    # -    
     def database_solve_count(self) -> int:
         
         if self._database_solve_count is not None:
@@ -379,6 +388,7 @@ class Member:
         return self._database_solve_count
     
     
+    # Returns an array of boolean: [b_1, ..., b_last_problem] where every True represents a solve
     def solve_array(self) -> list:
         
         if self._pe_solve_array is not None:
@@ -389,7 +399,8 @@ class Member:
         self.update_from_database()
         return self._database_solve_array
     
-    
+
+    # -
     def pe_solve_array(self) -> list:
         
         if self._pe_solve_array is not None:
@@ -398,7 +409,8 @@ class Member:
         self.update_from_friend_list()
         return self._pe_solve_array
 
-    
+
+    # -
     def database_solve_array(self) -> list:
         
         if self._database_solve_array is not None:
@@ -407,7 +419,8 @@ class Member:
         self.update_from_database()
         return self._database_solve_array
     
-    
+
+    # Returns the number of awards, classic ones and forum post ones
     def award_count(self):
         
         if self._pe_award_count is not None:
@@ -419,6 +432,7 @@ class Member:
         return self._database_award_count
     
     
+    # -
     def pe_award_count(self):
         
         if self._pe_award_count is not None:
@@ -428,6 +442,7 @@ class Member:
         return self._pe_award_count
     
     
+    # -
     def database_award_count(self):
         
         if self._database_award_count is not None:
@@ -436,8 +451,13 @@ class Member:
         self.update_from_database()
         return self._database_award_count
         
-        
-    def award_array(self):
+
+    # Returns an array with the awards, like
+    # [[True, False, ..;], [True, False, ...]]
+    # Where each boolean represents if the award has been obtained
+    # First array is for main awards and second for forum awards
+    # Use pe_api.get_awards_specs to get the names of the awards
+    def award_array(self) -> list:
         
         if self._pe_award_array is not None:
             return self._pe_award_array
@@ -466,6 +486,7 @@ class Member:
         return self._database_award_array
     
     
+    # The total kudo count
     def kudo_count(self):
         
         if self._pe_kudo_count is not None:
@@ -495,6 +516,9 @@ class Member:
         return self._database_kudo_count
     
     
+    # The list of kudos, in an array like
+    # [[107, 5], [108, 2]]
+    # If the user has 5 kudos for their post on 107 and 2 for 108
     def kudo_array(self):
         
         if self._pe_kudo_array is not None:
@@ -502,10 +526,11 @@ class Member:
         elif self._database_kudo_array is not None:
             return self._database_kudo_array
         
-        self.update_from_post_page()
+        self.update_from_database_kudo()
         return self._database_kudo_array
         
-        
+    
+    # -
     def pe_kudo_array(self):
         
         if self._pe_kudo_array is not None:
@@ -515,6 +540,7 @@ class Member:
         return self._pe_kudo_array
     
     
+    # -
     def database_kudo_array(self):
         
         if self._database_kudo_array is not None:
@@ -523,20 +549,25 @@ class Member:
         self.update_from_database_kudo()
         return self._database_kudo_array
         
-    
+
+    # Returns the level of the member
     def level(self) -> int:
         if self._level is None:
             self.update_from_database()
         return self._level
             
-        
+
+    # Returns the id of the member, which might be an empty string 
+    # if self.is_discord_linked() is false        
     def discord_id(self) -> str:
         if self._discord_id is None:
             self.update_from_database()
         return self._discord_id
     
 
-    def position_in_discord(self) -> int:
+    # Returns the position in the discord (ranking by solve count)
+    # and the number of member in the discord
+    def position_in_discord(self) -> tuple[int, int]:
         
         current_rank = 1
         all_members = Member.members_database()
@@ -555,10 +586,10 @@ class Member:
             if m.solve_count() > self.solve_count():
                 current_rank += 1
         
-        return [current_rank, valid_members]
+        return (current_rank, valid_members)
 
         
-            
+    # Returns true if the acccount if linked to a project euler account
     def is_discord_linked(self, connection = None, data = None) -> bool:
         
         dis_id = self.discord_id()
@@ -573,6 +604,7 @@ class Member:
         return len(data.keys()) >= 1
     
     
+    # -
     def is_account_in_database(self, connection = None) -> bool:
         
         key_id, value_id = self.identity()
@@ -581,18 +613,22 @@ class Member:
         return len(dbqueries.option_query(tquery, connection).keys()) >= 1
         
     
+    # -
     def have_solves_changed(self):
         return (not (self.pe_solve_count() == self.database_solve_count()))
     
     
+    # -
     def have_awards_changed(self):
         return (not (self.pe_award_count() == self.database_award_count()))
     
     
+    # -
     def have_kudos_changed(self):
         return (not (self.pe_kudo_count() == self.database_kudo_count()))
     
-            
+    
+    # -
     def get_new_solves(self):
         
         if not self.have_solves_changed():
@@ -616,6 +652,7 @@ class Member:
         return nsolves
     
     
+    # -
     def get_new_kudos(self):
         
         if not self.have_kudos_changed():
@@ -640,7 +677,8 @@ class Member:
             
         return nkudos
     
-        
+
+    # - 
     def get_new_awards(self):
         
         if not self.have_awards_changed():
@@ -665,6 +703,7 @@ class Member:
         return nawards
         
     
+    # -
     def push_kudo_to_database(self) -> None:
         
         kudos = self.pe_kudo_array()
@@ -679,6 +718,7 @@ class Member:
         dbqueries.single_req(tquery)
 
     
+    # -
     def push_basics_to_database(self) -> None:
         
         solved = self.pe_solve_count()
@@ -711,7 +751,8 @@ class Member:
                 
         dbqueries.single_req(tquery)
         
-        
+    
+    # -
     def push_awards_to_database(self) -> None:
         
         username = self.username()
@@ -728,7 +769,8 @@ class Member:
             
         dbqueries.single_req(tquery)
         
-        
+    
+    # Returns a list of all the members in the friend list of the bot on project euler
     @staticmethod
     def members_friends() -> list:
         
@@ -754,6 +796,7 @@ class Member:
         return result_list
     
     
+    # Returns a list of all the members in the friend list of the bot in the database
     @staticmethod
     def members_database() -> list:
         
@@ -778,6 +821,8 @@ class Member:
             
         return result_list
     
+
+    # Returns a list of all the members that the bot has ever heard of
     @staticmethod
     def members() -> list:
         
@@ -812,6 +857,7 @@ class Member:
         return result_list
     
 
+    # Returns a list like [102, 105] if the member has solved only 102 and 105
     def solved_problems(self):        
         solves = []
         for index, solved in enumerate(self.solve_array()):
@@ -820,6 +866,7 @@ class Member:
         return solves
 
 
+    # Returns a list like [763] if the member only has 763 left to
     def unsolved_problems(self):        
         unsolves = []
         for index, solved in enumerate(self.solve_array()):
@@ -1492,7 +1539,7 @@ if __name__ == "__main__":
     x = Member(_username = "Teyzer18")
     # print(x.unsolved_problems())
 
-    print(PE_Problem.complete_list())
+    print(x.kudo_array())
 
     # z = Member.members()
     # for m in z:

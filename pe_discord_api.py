@@ -136,8 +136,8 @@ async def on_ready():
             LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
             REPEATS_SUCCESSFUL_SINCE_START += 1
         
-        except Exception:
-            
+        except Exception as e:
+            console.log(e)
             if LAST_CHECK_SUCCESS == True:
                 LAST_CHECK_SUCCESS = False
                 await bot.change_presence(activity = discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
@@ -819,4 +819,5 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
     
 
 if __name__ == "__main__":
-    pass
+    m = pe_api.Member()
+    
