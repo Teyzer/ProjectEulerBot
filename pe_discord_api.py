@@ -29,7 +29,7 @@ from rich.console import Console
 from rich import inspect
 
 
-console = Console(record=True)
+console = Console(record = True)
 
 TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
@@ -37,12 +37,13 @@ GUILD_IDS = [PROJECT_EULER_SERVER]
 
 BOT_APPLICATION_ID = 930813331512635413
 
+ADMINISTRATOR_ROLE = 905683104461619261
+MODERATOR_ROLE = 1103325920028266607
+
 # Initial condition
 STARTING_TIME = datetime.datetime.now(pytz.utc)
 
 # In order to keep track of the last time the solves of members were checked
-LAST_CHECK_SUCCESS = False
-LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
 REPEATS_SINCE_START = 0
 REPEATS_SUCCESSFUL_SINCE_START = 0
 
@@ -82,131 +83,128 @@ AWARDING_SENTENCES = [
 
 THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
 
-# Where solve = [Account, Array of solves, Discord ID, Level] as returned by pe_api.keep_session_alive(),
-# returns a nicely formatted string for the user, including a discord @ if it exists.
-def formatName(solve):
-    if solve[2] != "":
-        return "`{0}` (<@{1}>)".format(solve[0], solve[2])
-    else:
-        return "`{0}`".format(solve[0])
+PROBLEM_LINK = "[Jump to problem {0}](<https://projecteuler.net/problem={0}>)"
+
+
+
+async def major_update():
+
+    global REPEATS_SINCE_START
+    global REPEATS_SUCCESSFUL_SINCE_START
+
+    REPEATS_SINCE_START += 1
+
+    # In the console
+    console.log(REPEATS_SINCE_START, end="| ")
+
+    if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
+        console.log("Trying to update global stats... ", end="")
+        global_update_output = pe_api.update_global_stats()
+        console.log(global_update_output, end= " | ")
+    
+    # Getting the data recquired
+    try:
+        profiles = pe_api.update_process()
+    
+    except Exception as e:
+        console.log(e)
+        await async_set_bot_status(3)
+        return False
+
+    await async_set_bot_status([1, 2][not pe_api.LAST_REQUEST_SUCCESSFUL])
+
+    if profiles is None:
+        return False
+    
+    if len(profiles) == 0:
+        return True
+    
+    event = pe_events.eventSoPE()
+    
+    problems: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()
+    awards_specs = pe_api.get_awards_specs()
+    
+    for profile in profiles:
+        
+        member: pe_api.Member = profile["member"]
+        solves = profile["solves"]
+        awards = profile["awards"]
+        
+        for problem_id in solves:
+            
+            problem: pe_api.PE_Problem = problems[problem_id - 1]
+            pe_api.push_solve_to_database(member, problem)
+
+            for channel_id in CHANNELS_TO_ANNOUNCE:
+                
+                channel = bot.get_channel(channel_id)
+                
+                #decide what message to send depending on how many solvers there are
+                if int(problem.solves) <= 3:
+                    sending_message = AWARDING_SENTENCES[problem.solves - 1].format(member.username_ping(), problem.problem_id, problem.name)
+                else:
+                    sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id, problem.name, problem.solves)
+                    
+                # this is a temporary code to add stars
+                optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
+                
+                sending_message = sending_message + optional_stars + " " + PROBLEM_LINK.format(problem.problem_id)
+                await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
+            
+        if member.solve_count() % 25 == 0:
+            
+            if member.is_discord_linked():
+                await update_member_roles(member)
+            
+            for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
+                channel = bot.get_channel(channel_id)
+                sending_message = member.username_ping() + " has just reached level {0}, congratulations!"
+                sending_message = sending_message.format(member.solve_count() // 25)
+                await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
+
+        if member.is_discord_linked() and member.solve_count() == len(member.solve_array()):
+            await update_member_roles(member)
+
+        if awards is None:
+            continue
+
+        for part in [0, 1]:
+            for award in awards[part]:
+                for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
+                    channel = bot.get_channel(channel_id)
+                    award_name = awards_specs[part][award]
+                    await channel.send(f"{member.username_ping()} got the award '{award_name}', congratulations!", 
+                                        allowed_mentions = discord.AllowedMentions(users = False))
+            
+            
+    pe_events.update_events(profiles)
+    return True
+
 
     
 
 @bot.event
 async def on_ready():
 
-    # await u()
-
     # Global variables in order to modify them
-    global LAST_CHECK_SUCCESS
-    global LAST_CHECK_TIME
     global REPEATS_SINCE_START
     global REPEATS_SUCCESSFUL_SINCE_START
 
-
-    # For debugging
-    console.log(f'Login made as {bot.user}')
-    
     # The 'Is playing {}' presence
     await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
+    
+    # For debugging
+    console.log(f'Login made as {bot.user}')
+    await tester()
 
-    while True:
+    need_to_stop = False
+    while not need_to_stop:
         
         # Async sleep
         await asyncio.sleep(AWAIT_TIME)
-
-        # In the console
-        console.log(REPEATS_SINCE_START, end="| ")
-
-        if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 0:
-            console.log("Trying to update global stats... ", end="")
-            global_update_output = pe_api.update_global_stats()
-            console.log(global_update_output, end= " | ")
         
-        # Getting the data recquired
-        try:
-            
-            profiles = pe_api.update_process()
-            
-            if LAST_CHECK_SUCCESS == False:
-                LAST_CHECK_SUCCESS = True
-                await bot.change_presence(activity=discord.Game(name="{0} /link to use me".format(GREEN_CIRCLE)))
-            
-            # We save this moment as the last correct retrieve
-            LAST_CHECK_TIME = datetime.datetime.now(pytz.utc)
-            REPEATS_SUCCESSFUL_SINCE_START += 1
-        
-        except Exception as e:
-            console.log(e)
-            if LAST_CHECK_SUCCESS == True:
-                LAST_CHECK_SUCCESS = False
-                await bot.change_presence(activity = discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
-            continue
-        
-        REPEATS_SINCE_START += 1
-        
-        if len(profiles) == 0:
-            continue
-        
-        event = pe_events.eventSoPE()
-        
-        problems: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()
-        awards_specs = pe_api.get_awards_specs()
-        
-        for profile in profiles:
-            
-            member: pe_api.Member = profile["member"]
-            solves = profile["solves"]
-            awards = profile["awards"]
-            
-            for problem_id in solves:
-                
-                problem: pe_api.PE_Problem = problems[problem_id - 1]
-                pe_api.push_solve_to_database(member, problem)
-
-                for channel_id in CHANNELS_TO_ANNOUNCE:
-                    
-                    channel = bot.get_channel(channel_id)
-                    
-                    #decide what message to send depending on how many solvers there are
-                    if int(problem.solves) <= 3:
-                        sending_message = AWARDING_SENTENCES[problem.solves - 1].format(member.username_ping(), problem.problem_id, problem.name)
-                    else:
-                        sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id, problem.name, problem.solves)
-                        
-                    # this is a temporary code to add stars
-                    optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
-                    
-                    sending_message = sending_message + optional_stars + " <https://projecteuler.net/problem={0}>".format(problem.problem_id)
-                    await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
-                
-            if member.solve_count() % 25 == 0:
-                
-                if member.is_discord_linked():
-                    await update_member_roles(member)
-                
-                for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
-                    channel = bot.get_channel(channel_id)
-                    sending_message = member.username_ping() + " has just reached level {0}, congratulations!"
-                    sending_message = sending_message.format(member.solve_count() // 25)
-                    await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
-
-            if member.is_discord_linked() and member.solve_count() == len(member.solve_array()):
-                await update_member_roles(member)
-
-            if awards is None:
-                continue
-
-            for part in [0, 1]:
-                for award in awards[part]:
-                    for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
-                        channel = bot.get_channel(channel_id)
-                        award_name = awards_specs[part][award]
-                        await channel.send(f"{member.username_ping()} got the award '{award_name}', congratulations!", 
-                                           allowed_mentions = discord.AllowedMentions(users=False))
-                
-                
-        pe_events.update_events(profiles)
+        # Main loop
+        await major_update()
 
 
 
@@ -216,8 +214,12 @@ COMMANDS
 
 @bot.slash_command(name="update", description="Update the known friend list of the bot")
 async def command_hello(ctx):
+    
     await ctx.defer()
-    if pe_api.keep_session_alive() is None:
+
+    data = await major_update()
+
+    if data in [False, None]:
         await ctx.respond("An error occured during the fetch, this may need human checkup. Use /status to get more details.")
     else:
         await ctx.respond("The data was updated!")
@@ -227,13 +229,21 @@ async def command_hello(ctx):
 async def command_status(ctx):
     
     text_response = "The last fetch of data was `{0}`. The last successful fetch was made on `{1}`.\n"
-    text_response += "Since the last restart of the bot (`{4}`), there was `{2}` successful request, over `{3}` in total."
+    text_response += "Since the last restart of the bot (`{4}`), there was `{2}` successfuls requests, over `{3}` in total.\n"
+    text_response += "(And `{5}` queries to the database)."
 
-    fetched_data_status = "successful" if LAST_CHECK_SUCCESS else "unsuccessful"
-    fetched_data_time_status = LAST_CHECK_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+    fetched_data_status = "successful" if pe_api.LAST_REQUEST_SUCCESSFUL else "unsuccessful"
+    fetched_data_time_status = pe_api.LAST_REQUEST_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
     fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
 
-    text_response = text_response.format(fetched_data_status, fetched_data_time_status, str(REPEATS_SUCCESSFUL_SINCE_START), str(REPEATS_SINCE_START), fetch_starting_time)
+    text_response = text_response.format(
+        fetched_data_status, 
+        fetched_data_time_status, 
+        str(pe_api.TOTAL_SUCCESS_REQUESTS),
+        str(pe_api.TOTAL_REQUESTS), 
+        fetch_starting_time,
+        dbqueries.DB_TOTAL_REQUESTS
+    )
 
     await ctx.respond(text_response)
 
@@ -325,6 +335,8 @@ async def command_unlink(ctx):
 @bot.slash_command(name="kudos", description="Display the kudos progression of your posts on the forum")
 @option("member", description="Mention the member you want the kudos to be displayed", default=None)
 async def command_kudos(ctx, member: discord.User):
+
+    await ctx.defer()
 
     m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
@@ -752,9 +764,30 @@ async def command_update_roles(ctx, member: discord.User):
     m = pe_api.Member(_discord_id = discord_id)
     await update_member_roles(m)
 
-    return await ctx.respond("I did not crash during the update, that's all I know", ephemeral=True)
+    await ctx.respond("I did not crash during the update, that's all I know", ephemeral=True)
 
 
+@bot.slash_command(name="announce-back")
+@option("problem", description="Which problem", min=1)
+@option("member", description="Which member", default = None)
+async def command_announce_back(ctx, problem: int, member: discord.User):
+
+    await ctx.defer()
+
+    perms = await sufficient_permissions(ctx.guild.get_member(ctx.author.id))
+
+    if not perms:
+        return await ctx.respond("You need to be a moderator or more to use this, sorry!", ephemeral=True)
+    
+    discord_id = ctx.author.id
+
+    if member is not None:
+        discord_id = member.id
+
+    m = pe_api.Member(_discord_id = discord_id)
+    m.make_problem_unsolved(problem)
+
+    await ctx.respond("The solve will quickly be announced. Use /update if you want it to be right now.")
 
 
 """ 
@@ -818,8 +851,38 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
         threads.append(t)
         
     return threads
-    
+
+
+"""
+Use choice=1 for restart, 2 for success, and 3 for crash
+"""
+async def async_set_bot_status(choice: int):
+
+    if choice == 0:
+        await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
+    elif choice == 1:
+        await bot.change_presence(activity=discord.Game(name="{0} /link to use me".format(GREEN_CIRCLE)))
+    elif choice == 2:
+        await bot.change_presence(activity=discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
+    elif choice == 3:
+        await bot.change_presence(activity=discord.Game(name="{0} drowning under errors".format(RED_CIRCLE)))
+
+
+async def sufficient_permissions(member):
+
+    guild = member.guild
+
+    admin_role = guild.get_role(ADMINISTRATOR_ROLE)
+    mod_role = guild.get_role(MODERATOR_ROLE)
+
+    return (admin_role in member.roles or mod_role in member.roles)
+
+
+async def tester():
+    # await async_set_bot_status(2)
+    pass
+
 
 if __name__ == "__main__":
-    m = pe_api.Member()
+    pass
     

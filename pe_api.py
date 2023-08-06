@@ -12,18 +12,38 @@ from rich.console import Console
 from rich import inspect
 
 
-
 TOTAL_REQUESTS = 0
+TOTAL_SUCCESS_REQUESTS = 0
 SESSION_REQUESTS = 0
+LAST_REQUEST_SUCCESSFUL = False
+LAST_REQUEST_TIME = datetime.datetime.now(pytz.utc)
 
-console = Console()
 
 CREDENTIALS_LOCATION = "session_cookies.txt"
 BASE_URL = "https://projecteuler.net/minimal={0}"
 NOT_MINIMAL_BASE_URL = "https://projecteuler.net/{0}"
 
+console = Console()
+
 
 class ProjectEulerRequest:
+
+    @staticmethod
+    def request_failed():
+
+        global LAST_REQUEST_SUCCESSFUL
+        LAST_REQUEST_SUCCESSFUL = False
+
+
+    @staticmethod
+    def request_succeeded():
+
+        global LAST_REQUEST_SUCCESSFUL, LAST_REQUEST_TIME, TOTAL_SUCCESS_REQUESTS
+        
+        LAST_REQUEST_SUCCESSFUL = True
+        LAST_REQUEST_TIME = datetime.datetime.now(pytz.utc)
+        TOTAL_SUCCESS_REQUESTS += 1
+
     
     def __init__(self, target_url: str, need_login: bool = True):
         
@@ -49,17 +69,27 @@ class ProjectEulerRequest:
             self.status = int(r.status_code)
             
             if r.status_code != 200:
-                # Phone API is sending a notifications to Teyzer's phone
+                # Phone API is sending a notifications to teyzer's phone
                 phone_api.bot_crashed(r.status_code)
+                ProjectEulerRequest.request_failed()
                 self.response = None
                 console.log(r.text)
             else:
+                ProjectEulerRequest.request_succeeded()
                 self.response = r.text
 
         except Exception as err:
             phone_api.bot_crashed("Runtime Error")
+            ProjectEulerRequest.request_failed()
             self.status = None
             self.response = "Failed"
+            
+
+
+
+
+
+
         
 
 class PE_Problem:
@@ -873,9 +903,18 @@ class Member:
             if not solved:
                 unsolves.append(index + 1)
         return unsolves
+    
 
+    def make_problem_unsolved(self, problem: int):
+
+        cur_solves = "".join(["01"[b] for b in self.pe_solve_array()])
+        cur_solves = cur_solves[:(problem - 1)] + "0" + cur_solves[(problem - 1) + 1:]
+
+        tquery = f"UPDATE members SET solve_list = '{cur_solves}', solved = {self.solve_count() - 1} \
+            WHERE username = '{self.username()}';"
         
-
+        dbqueries.single_req(tquery)
+        
 
 
 def update_process() -> None:
@@ -961,7 +1000,7 @@ def keep_session_alive():
 
     # Doing the right request, to https://projecteuler.net/minimal=friends, to the minimal API
     url = BASE_URL.format("friends")
-    data = req_to_project_euler(url, True)
+    data = ProjectEulerRequest(url).response
 
     # If data is None, it means that the request was unsuccessful
     if data is None:
@@ -1091,7 +1130,7 @@ def push_solve_to_database(member: Member, solve: PE_Problem):
 # Return array of the form ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 # Careful as all values in the array are string, not ints
 def problem_def(n):
-    data = req_to_project_euler(BASE_URL.format("problems"))
+    data = ProjectEulerRequest(BASE_URL.format("problems")).response
     lines = data.split("\n")
     pb = lines[n].replace("\r", "")
     specs = pb.split("##")
@@ -1102,14 +1141,14 @@ def problem_def(n):
 # With each problem being of the kind ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 # Careful as all values in the array are string, not ints
 def problems_list():
-    data = req_to_project_euler(BASE_URL.format("problems"), False).split("\n")
+    data = ProjectEulerRequest(BASE_URL.format("problems")).response.split("\n")
     data = list(map(lambda element: element.replace("\r", "").split("##"), data))
     return data
 
 
 # Return last problem available, including the ones in the recent tab
 def last_problem():
-    data = req_to_project_euler(BASE_URL.format("problems"))
+    data = ProjectEulerRequest(BASE_URL.format("problems")).response
     return len(data.split("\n")) - 2
 
 
@@ -1118,7 +1157,7 @@ def last_problem():
 def get_kudos(username):
 
     url = NOT_MINIMAL_BASE_URL.format("progress={0};show=posts".format(username))
-    data = req_to_project_euler(url)
+    data = ProjectEulerRequest(url).response
     soup = BeautifulSoup(data, 'html.parser')
     div = soup.find(id='posts_made_section')
 
@@ -1224,7 +1263,7 @@ def project_euler_username(discord_id, connection=None):
 def unsolved_problems(username):
 
     url = BASE_URL.format("friends")
-    data = req_to_project_euler(url, True)
+    data = ProjectEulerRequest(url).response
     if data is None:
         pass
 
@@ -1236,7 +1275,7 @@ def unsolved_problems(username):
 
     member_solves = members[usernames.index(username)][6]
 
-    data = req_to_project_euler(BASE_URL.format("problems"))
+    data = ProjectEulerRequest(BASE_URL.format("problems"))
     problems = list(map(lambda x: x.replace("\r", ""), data.split("\n")))
 
     unsolved = []
@@ -1256,7 +1295,7 @@ def unsolved_problems(username):
 def get_all_profiles_on_project_euler():
 
     url = BASE_URL.format("friends")
-    data = req_to_project_euler(url, True)
+    data = ProjectEulerRequest(url).response
     if data is None:
         pass
 
@@ -1309,7 +1348,7 @@ def get_all_discord_profiles_who_solved(problem: int):
 def problems_of_member(username):
 
     url = BASE_URL.format("friends")
-    data = req_to_project_euler(url, True)
+    data = ProjectEulerRequest(url).response
     if data is None:
         pass
 
@@ -1329,7 +1368,7 @@ def problems_of_member(username):
 def get_awards(username):
 
     url = NOT_MINIMAL_BASE_URL.format("progress={0};show=awards".format(username))
-    data = req_to_project_euler(url)
+    data = ProjectEulerRequest(url).response
     soup = BeautifulSoup(data, 'html.parser')
 
     div1 = soup.find(id="problem_solving_awards_section")
@@ -1388,7 +1427,7 @@ def get_all_profiles_in_database():
 # return a list of all the names of the awards
 def get_awards_specs():
     url = NOT_MINIMAL_BASE_URL.format("progress;show=awards")
-    data = req_to_project_euler(url)
+    data = ProjectEulerRequest(url).response
     soup = BeautifulSoup(data, 'html.parser')
 
     all_awards = []
@@ -1441,7 +1480,7 @@ def get_global_stats():
 
     # Basic script to get the html code on a page
     problem_url = NOT_MINIMAL_BASE_URL.format("problem_analysis")
-    problem_data = req_to_project_euler(problem_url)
+    problem_data = ProjectEulerRequest(problem_url).response
     problem_soup = BeautifulSoup(problem_data, 'html.parser')
 
     # This tag represents the column we wants
@@ -1454,7 +1493,7 @@ def get_global_stats():
     
     # Again, basic requests to get html code
     level_url = NOT_MINIMAL_BASE_URL.format("levels")
-    level_data = req_to_project_euler(level_url)
+    level_data = ProjectEulerRequest(level_url).response
     level_soup = BeautifulSoup(level_data, 'html.parser')
 
     # Format all this data
@@ -1466,7 +1505,7 @@ def get_global_stats():
 
     # Basic script to get the awards stats
     award_url = NOT_MINIMAL_BASE_URL.format("awards")
-    award_data = req_to_project_euler(award_url)
+    award_data = ProjectEulerRequest(award_url).response
     award_soup = BeautifulSoup(award_data, 'html.parser')
 
     # Formatting the data
