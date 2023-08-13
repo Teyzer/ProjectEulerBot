@@ -363,30 +363,40 @@ async def command_kudos(ctx, member: discord.User):
 @option("display_nb", description="The number of problems you want to be displayed", min_value=1, max_value=25, default=10)
 async def command_easiest(ctx, member: discord.User, method: str, display_nb: int):
     
+    await ctx.defer()
+
     discord_id = ctx.author.id
     if member is not None:
         discord_id = member.id
 
-    connection = dbqueries.open_con()
-    if not pe_api.is_discord_linked(discord_id, connection):
+    m = pe_api.Member(_discord_id = discord_id)
+
+    if not m.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-    username = dbqueries.query("SELECT username FROM members WHERE discord_id='{0}';".format(discord_id), connection)[0]["username"]
-    dbqueries.close_con(connection)
+    problem_specs = pe_api.PE_Problem.complete_list()
+    problem_list = [problem_specs[i - 1] for i in m.unsolved_problems()]
 
-    list_problems = pe_api.unsolved_problems(username)
+    # pb: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()[0]
 
-    if method == "By number of solves":
-        problems = sorted(list_problems, key=lambda x: int(x[3]), reverse=True)
-    elif method == "By order of publication":
-        problems = sorted(list_problems, key=lambda x: int(x[0]))
-    elif method == "By ratio of solves per time unit":
-        problems = sorted(list_problems, key=lambda x: int(x[3])/(int(time.time()) + 31536000 - int(x[2])), reverse=True)
+    problems = sorted(
+        problem_list, 
+        key={
+            "By number of solves": lambda pb: int(pb.solves),
+            "By order of publication": lambda pb: int(pb.unix_publication),
+            "By ratio of solves per time unit": lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication) ), 
+        }[method], 
+        reverse=True
+    )
 
     problems = problems[:display_nb]
 
-    lst = "```" + "\n".join(list(map(lambda x: "Problem #{0}: '{1}' solved by {2} members".format(x[0], x[1], x[3]), problems))) + "```"
-    return await ctx.respond("Here are the {1} easiest problems available to `{0}`:".format(username, display_nb) + lst)
+    lst = "```" + "\n".join(list(map(
+        lambda pb: f"Problem #{pb.problem_id}: '{pb.name}' solved by {pb.solves} members", 
+        problems
+    ))) + "```"
+
+    return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username()}` for SoPE:" + lst)
 
 
 @bot.slash_command(name="graph", description="Graph something!")
@@ -618,11 +628,12 @@ async def command_randproblem(ctx, member: discord.User):
     if m.solve_count() == len(m.solve_array()):
         return await ctx.respond(f"I *randomly* selected problem #1729 for user: `{m.username()}`: <https://teyzer.github.io/problem1729/>")
 
-    problems = pe_api.unsolved_problems(m.username())
-    choice = random.choice(problems)
+    problems = m.unsolved_problems()
+    all_problems = pe_api.PE_Problem.complete_list()
+    choice: pe_api.PE_Problem = all_problems[random.choice(problems) - 1]
 
     text_message = "I randomly selected problem #{0} for user `{1}`: \"{2}\". <https://projecteuler.net/problem={0}>"
-    text_message = text_message.format(choice[0], m.username(), choice[1])
+    text_message = text_message.format(choice.problem_id, m.username(), choice.name)
 
     return await ctx.respond(text_message)
     
