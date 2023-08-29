@@ -82,7 +82,7 @@ class ProjectEulerRequest:
             phone_api.bot_crashed("Runtime Error")
             ProjectEulerRequest.request_failed()
             self.status = None
-            self.response = "Failed"
+            self.response = err
             
 
 
@@ -195,6 +195,7 @@ class Member:
             friend_page = ProjectEulerRequest(BASE_URL.format("friends"))
         
         if friend_page.status != 200:
+            ProjectEulerRequest.request_failed()
             raise Exception("Request failed")
         
         format_func = lambda x: x.replace("C###", "Csharp##").replace("F###", "Fsharp##").split("##")
@@ -229,6 +230,7 @@ class Member:
         kudo_page = ProjectEulerRequest(request_url)
         
         if kudo_page.status != 200:
+            ProjectEulerRequest.request_failed()
             raise Exception("Request failed")
         
         soup = BeautifulSoup(kudo_page.response, 'html.parser')
@@ -255,6 +257,7 @@ class Member:
         post_page = ProjectEulerRequest(request_url)
         
         if post_page.status != 200:
+            ProjectEulerRequest.request_failed()
             raise Exception("Request failed")
 
         soup = BeautifulSoup(post_page.response, 'html.parser')
@@ -1578,7 +1581,7 @@ if __name__ == "__main__":
     x = Member(_username = "Teyzer18")
     # print(x.unsolved_problems())
 
-    print(x.kudo_array())
+    print(ProjectEulerRequest("https://projecteuler.net/minimal=friends", False).response)
 
     # z = Member.members()
     # for m in z:

@@ -384,7 +384,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
         key={
             "By number of solves": lambda pb: int(pb.solves),
             "By order of publication": lambda pb: int(pb.unix_publication),
-            "By ratio of solves per time unit": lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication) ), 
+            "By ratio of solves per time unit": lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication)), 
         }[method], 
         reverse=True
     )
@@ -396,7 +396,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
         problems
     ))) + "```"
 
-    return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username()}` for SoPE:" + lst)
+    return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username()}`:" + lst)
 
 
 @bot.slash_command(name="graph", description="Graph something!")
@@ -739,17 +739,17 @@ async def command_easiest_sope(ctx, member: discord.User, display_nb: int):
     problem_specs = pe_api.PE_Problem.complete_list()
     problem_list = [problem_specs[i - 1] for i in m.unsolved_problems()]
 
-    problems = sorted(
-        problem_list, 
-        key=lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication) ), 
-        reverse=True
-    )
-
     ev = pe_events.eventSoPE()
     problems = list(filter(
         lambda pb: not ev.is_problem_solved(pb.problem_id),
         problem_list
     ))
+
+    problems = sorted(
+        problems,
+        key=lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication)), 
+        reverse=True
+    )
 
     problems = problems[:display_nb]
 
