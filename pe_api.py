@@ -634,7 +634,7 @@ class Member:
             tquery = f"SELECT * FROM members WHERE discord_id='{dis_id}';"
             data = dbqueries.option_query(tquery, connection)
             
-        return len(data.keys()) >= 1
+        return len(data.keys()) >= 1 and dis_id != ""
     
     
     # -

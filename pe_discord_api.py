@@ -808,6 +808,9 @@ FUNCTIONS MADE TO HELP, STRICTLY CONCERNING DISCORD
 
 async def update_member_roles(m: pe_api.Member):
 
+    if m.discord_id() == "":
+        return
+
     guild = bot.get_guild(PROJECT_EULER_SERVER)
     member = guild.get_member(int(m.discord_id()))
 

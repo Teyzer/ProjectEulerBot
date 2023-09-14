@@ -90,6 +90,45 @@ def update_events(profiles):
 if __name__ == "__main__":
     
     event = eventSoPE()
-    event.set_solver_option(1, "ecnerwala", int(time.time()))
     
-    print(event.scores())
+    problems = pe_api.PE_Problem.complete_list()
+    score_list = {}
+    
+    total_percentage_score = 0
+    total_longevity_score = 0
+
+    solver_count = {}
+
+    problem: pe_api.PE_Problem
+    for problem in problems:
+        
+        problem_id = problem.problem_id
+        if not event.is_problem_solved(problem_id):
+            continue
+            
+        solver_name, timestamp = event.get_solver(problem_id)
+        time_to_solve = timestamp - event.starting_timestamp()
+        
+        difficulty = problem.difficulty_rating if problem.difficulty_rating is not None else 70
+        
+        difficulty_score = max(5, (difficulty // 15) * 5)
+        day_score = time_to_solve // 86400
+        
+        if solver_name not in score_list:
+            score_list[solver_name] = 0
+            solver_count[solver_name] = 0
+            
+        score_list[solver_name] += day_score + difficulty_score
+        solver_count[solver_name] += 1
+
+        total_longevity_score += day_score
+        total_percentage_score += difficulty_score
+
+    print("Best scores:", sorted(score_list.items(), key=lambda el: el[1], reverse=True)[:10])
+    print("Total score:", total_percentage_score + total_longevity_score, total_percentage_score, total_longevity_score)
+    print("Total solves:", len(event.data["solves"]))
+    print("Best solves:", sorted(solver_count.items(), key=lambda el: el[1], reverse=True)[:5])
+    print("Hardest problem solved: #763 by philiplu")
+    print("First to 1000 and 2000 landmark: shcarecrow")
+    print("The saddest moment of the contest: rak1507 beaten by adamant on #128 by four minutes")
+    print(", ".join(list(score_list.keys())))
