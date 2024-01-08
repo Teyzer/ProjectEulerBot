@@ -290,7 +290,7 @@ async def command_link(ctx, username: str):
 
     user = dbqueries.single_req("SELECT * FROM members WHERE username = '{0}'".format(username))
     if len(user.keys()) == 0:
-        return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nThen ensure your account is not unlisted.\n\nIf you think this is a mistake, type /update")
+        return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nThen ensure your project euler account is not unlisted.\n\nIf you think this is a mistake, type /update")
 
     user = user[0]
     if str(user["discord_id"]) != "":
