@@ -590,7 +590,9 @@ async def command_list_threads(ctx):
 
 @bot.slash_command(name="randproblem", description="Give a random problem the user has not solved")
 @option("member", description="The targetted member", default=None)
-async def command_randproblem(ctx, member: discord.User):
+@option("minimum difficulty", description="minimum project euler difficulty rating", default=5, min=5, max=100)
+@option("maximum difficulty", description="maximum project euler difficulty rating", default=100, min=5, max=100)
+async def command_randproblem(ctx, member: discord.User, min_difficulty: int, max_difficulty: int):
 
     await ctx.defer()
 
@@ -603,11 +605,29 @@ async def command_randproblem(ctx, member: discord.User):
     if not m.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-    if m.solve_count() == len(m.solve_array()):
+    if min_difficulty > max_difficulty:
+        return await ctx.respond("Minimum difficulty must be smaller than maximum difficulty")
+
+    if m.solve_count() == len(m.solve_array()) or random.uniform(0,1) < 0.001:
         return await ctx.respond(f"I *randomly* selected problem #1729 for user: `{m.username()}`: <https://teyzer.github.io/problem1729/>")
 
     problems = pe_api.unsolved_problems(m.username())
-    choice = random.choice(problems)
+    if min_difficulty == 5 and max_difficulty == 100:
+        choice = random.choice(problems)
+    else:
+        difficulties = [*map(lambda problem: (problem.problem_id,problem.difficulty_rating),pe_api.PE_Problem.complete_list())]
+        unsolved_difficulties = []
+        unsolved_ids_map = {}
+        for problem in problems:
+            unsolved_ids_map[int(problem[0])] = problem
+
+        for problem,difficulty in difficulties:
+            if problem in unsolved_ids_map and min_difficulty <= difficulty <= max_difficulty:
+                unsolved_difficulties.append(unsolved_ids_map[problem])
+
+        if len(unsolved_difficulties) == 0:
+            return await ctx.respond(f"{m.username()} has no unsolved problems in difficulty range [{min_difficulty},{max_difficulty}]")
+        choice = random.choice(unsolved_difficulties)
 
     text_message = "I randomly selected problem #{0} for user `{1}`: \"{2}\". <https://projecteuler.net/problem={0}>"
     text_message = text_message.format(choice[0], m.username(), choice[1])

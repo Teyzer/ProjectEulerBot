@@ -1171,7 +1171,7 @@ def project_euler_username(discord_id, connection=None):
     return data[0]["username"]
 
 
-# Returns a double array of the form [problem_1, problem_2, problem_3, ...]
+# Returns a 2d array of the form [problem_1, problem_2, problem_3, ...]
 # with problem_i of the form ['problem_nb', 'problem_title', 'unix timestamp of publish', 'solved by', '0']
 # careful again, only strings in the arrays
 def unsolved_problems(username):
