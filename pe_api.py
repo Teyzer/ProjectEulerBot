@@ -871,6 +871,8 @@ class Member:
         """
         
         dis_id = self.discord_id()
+        if dis_id == "":
+            return False
         
         if self._username is not None:
             return True
@@ -1335,6 +1337,13 @@ def get_all_discord_profiles_who_solved(problem: int):
 
     solvers = []
 
+    members: List[Member] = Member.members()
+    for member in members:
+
+        if member.is_discord_linked() and member.has_solved(problem):
+            solvers.append([member.username(), member.discord_id()])
+
+    """
     profiles = get_all_profiles_in_database()
 
     for k in profiles.keys():
@@ -1342,6 +1351,7 @@ def get_all_discord_profiles_who_solved(problem: int):
         
         if len(profile["solve_list"]) >= problem and profile["solve_list"][problem - 1] == "1" and profile["discord_id"] != "":
             solvers.append([profile["username"], profile["discord_id"]])
+    """
 
     return solvers
 
