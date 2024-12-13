@@ -7,6 +7,8 @@ import pytz
 from math import *
 import json
 
+from requests import TooManyRedirects
+
 # import dbqueries
 import pe_database
 import pe_api
@@ -107,7 +109,7 @@ def pe_discord_api_setup(channels: dict):
 
 
 
-async def major_update():
+async def major_update() -> bool:
 
     global REPEATS_SINCE_START
     global REPEATS_SUCCESSFUL_SINCE_START
@@ -116,11 +118,18 @@ async def major_update():
 
 
     # SANITY CHECKS
-
-    website_down = pe_session.is_website_down()
+    website_active = pe_session.is_website_active()
     session_alive = pe_session.is_connected()
 
-    # console.log(website_down, session_alive)
+    if not website_active:
+        console.log("Skipped major_update because website does not respond.")
+        await async_set_bot_status(3, "Website died")
+        return False
+
+    if not session_alive:
+        console.log("Skipped major_update because there is no active session.")
+        await async_set_bot_status(3, "Session died")
+        return False
 
     # This is turned down for now as it doesn't work
     """
@@ -129,20 +138,20 @@ async def major_update():
     """
 
     # In the console
-    console.log(REPEATS_SINCE_START, end="| ")
+    console.log(f"Starting repeat #{REPEATS_SINCE_START}", end="| ")
 
     if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
         console.log("Trying to update global stats... ", end="")
         global_update_output = pe_api.update_global_stats()
         console.log(global_update_output, end= " | ")
-    
+
     # Getting the data required
     try:
         profiles = pe_api.update_process()
     
-    except Exception as e:
-        console.log(e, traceback.format_exc())
-        await async_set_bot_status(3)
+    except Exception as exc:
+        console.log(exc, traceback.format_exc())
+        await async_set_bot_status(3, "Unknown error")
         return False
 
     await async_set_bot_status([1, 2][not pe_api.LAST_REQUEST_SUCCESSFUL])
@@ -167,7 +176,7 @@ async def major_update():
     if len(profiles) == 0:
         return True
     
-    problems: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()
+    problems: List[pe_api.PE_Problem] = pe_api.PE_Problem.complete_list()
     awards_specs = pe_api.get_awards_specs()
     
     for profile in profiles:
@@ -291,8 +300,8 @@ async def command_status(ctx):
     fetched_data_status = "successful" if pe_api.LAST_REQUEST_SUCCESSFUL else "unsuccessful"
     fetched_data_time_status = pe_api.LAST_REQUEST_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
     fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
-    website_status = "online" if  pe_session.is_website_down() is False else "down"
-    session_status = "active" if pe_session.is_connected() is True else "killed"
+    website_status = "online" if  pe_session.is_website_active() else "down"
+    session_status = "active" if pe_session.is_connected() else "killed"
 
     text_response = text_response.format(
         fetched_data_status, 
@@ -320,10 +329,8 @@ async def command_profile(ctx, member: discord.User):
     discord_id = member.id
     profile_url = "https://cdn.discordapp.com/embed/avatars/{0}.png".format(int(member.discriminator) % 5)
 
-    try:
+    if member.avatar is not None:
         profile_url = member.avatar.url
-    finally:
-        pass
 
     m = pe_api.Member(_discord_id = str(discord_id))
 
@@ -1359,19 +1366,23 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
     return threads
 
 
-async def async_set_bot_status(choice: int):
+async def async_set_bot_status(choice: int, crash_message: Optional[str] = None) -> None:
     """
-    Use choice=1 for restart, 2 for success, and 3 for crash
+    Use choice=
+        0: Start
+        1: Normal state
+        2: Not working
+        3: Not working, own message
     """
 
     if choice == 0:
-        await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
+        await bot.change_presence(activity=discord.Game(name=f"{ORANGE_CIRCLE} Starting"))
     elif choice == 1:
-        await bot.change_presence(activity=discord.Game(name="{0} /link to use me".format(GREEN_CIRCLE)))
+        await bot.change_presence(activity=discord.Game(name=f"{GREEN_CIRCLE} /link to use me"))
     elif choice == 2:
-        await bot.change_presence(activity=discord.Game(name="{0} /status for details".format(RED_CIRCLE)))
+        await bot.change_presence(activity=discord.Game(name=f"{RED_CIRCLE} /status for details"))
     elif choice == 3:
-        await bot.change_presence(activity=discord.Game(name="{0} drowning under errors".format(RED_CIRCLE)))
+        await bot.change_presence(activity=discord.Game(name=f"{RED_CIRCLE} {crash_message}"))
 
 
 async def sufficient_permissions(member):
@@ -1381,7 +1392,7 @@ async def sufficient_permissions(member):
     admin_role = guild.get_role(ADMINISTRATOR_ROLE)
     mod_role = guild.get_role(MODERATOR_ROLE)
 
-    return (admin_role in member.roles or mod_role in member.roles)
+    return admin_role in member.roles or mod_role in member.roles
 
 
 async def announce_messages(messages: list):
@@ -1389,8 +1400,6 @@ async def announce_messages(messages: list):
     possible_channels = {
         "TEST_CHANNEL": SMALL_ANNOUNCEMENTS_CHANNEL
     }
-
-    print(messages)
 
     for message, channel_description in messages:
         channel = bot.get_channel(possible_channels[channel_description])

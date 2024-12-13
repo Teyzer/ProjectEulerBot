@@ -38,11 +38,7 @@ for lang_name in LANGUAGES_ROLES.keys():
 
 class Dropdown(discord.ui.Select):
 
-    #start = [False for _ in LANGUAGES_ROLES.keys()]
-
     def __init__(self, bot_: discord.Bot, author_: discord.User):
-
-        #print("got point 2")
 
         # For example, you can use self.bot to retrieve a user or perform other functions in the callback.
         # Alternatively you can use Interaction.client, so you don't need to pass the bot instance.

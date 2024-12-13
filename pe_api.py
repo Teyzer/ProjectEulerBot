@@ -6,7 +6,6 @@ import pytz
 import json
 import time
 
-# import dbqueries
 import pe_database
 
 import phone_api
@@ -96,10 +95,11 @@ class ProjectEulerRequest:
                 self.response: str | Exception | None = r.text
 
         except Exception as err:
-            phone_api.bot_crashed("Runtime Error")
+            phone_api.bot_crashed(str(err))
             ProjectEulerRequest.request_failed()
             self.status = None
-            self.response: str | Exception | None = err
+            raise err
+            # self.response: str | Exception | None = err
         
 
 
@@ -174,36 +174,41 @@ class PE_Problem:
 class Member:
     
     
-    def __init__(self, _username: str = None, _nickname: str = None, _country: str = None, _language: str = None,
-                 _solve_count: int = None, _level: int = None, _solve_array: list = None, _discord_id: str = None, 
-                 _kudo_count: int = None, _kudo_array: list = None, _database_solve_count: int = None, _database_solve_array: List[bool] = None,
-                 _award_count: int = None, _award_array: tuple = None, _database_award_count: int = None,
-                 _database_award_array: tuple = None, _database_kudo_count: int = None, _database_kudo_array: list = None,
-                 _private: bool = None) -> None:
+    def __init__(self, **kwargs) -> None:
+
+        self._username: Optional[str] = None # = _username
+        self._nickname: Optional[str] = None # = _nickname
+        self._country: Optional[str] = None # = _country
+        self._language: Optional[str] = None # = _language
+        self._level: Optional[int] = None # = _level
         
-        self._username = _username
-        self._nickname = _nickname
-        self._country = _country
-        self._language = _language
-        self._level = _level
+        self._discord_id: Optional[str] = None # = None if _discord_id is None else str(_discord_id)
         
-        self._discord_id = None if _discord_id is None else str(_discord_id)
+        self._pe_solve_count: Optional[int] = None # = _solve_count
+        self._pe_solve_array: Optional[List[bool]] = None # = _solve_array
+        self._pe_award_count: Optional[int] = None # = _award_count
+        self._pe_award_array: Tuple[List[bool], List[bool], List[bool]] | None = None # = _award_array
+        self._pe_kudo_count: Optional[int] = None # = _kudo_count
+        self._pe_kudo_array: List[Tuple[int, int]] | None = None # = _kudo_array
+        self._pe_bonus_array: Optional[List[bool]] = None
         
-        self._pe_solve_count = _solve_count
-        self._pe_solve_array = _solve_array
-        self._pe_award_count = _award_count
-        self._pe_award_array: Tuple[List[bool], List[bool], List[bool]] | None = _award_array
-        self._pe_kudo_count = _kudo_count
-        self._pe_kudo_array: List[Tuple[int, int]] = _kudo_array
-        
-        self._database_solve_count = _database_solve_count
-        self._database_solve_array = _database_solve_array
-        self._database_award_count = _database_award_count
-        self._database_award_array: Tuple[List[bool], List[bool], List[bool]] | None = _database_award_array
-        self._database_kudo_count = _database_kudo_count
-        self._database_kudo_array: List[Tuple[int, int]] = _database_kudo_array
-        
-        self._private = _private
+        self._database_solve_count: Optional[int] = None # = _database_solve_count
+        self._database_solve_array: Optional[List[bool]] = None # = _database_solve_array
+        self._database_award_count: Optional[int] = None # = _database_award_count
+        self._database_award_array: Tuple[List[bool], List[bool], List[bool]] | None = None # = _database_award_array
+        self._database_kudo_count: Optional[int] = None # = _database_kudo_count
+        self._database_kudo_array: List[Tuple[int, int]] | None = None # = _database_kudo_array
+        self._database_bonus_array: Optional[List[bool]] | None = None
+
+        self._private: Optional[bool] = None # = _private
+
+        for k, val in kwargs.items():
+
+            if k == "_discord_id":
+                self._discord_id = str(val)
+                continue
+
+            self.__dict__[k] = val
         
     
     def __str__(self) -> str:
@@ -324,8 +329,31 @@ class Member:
         self._pe_kudo_count = sum(list(map(lambda x: x[1], posts)))
         self._pe_kudo_array = posts
 
-    
-    
+
+    def update_from_bonus_page(self) -> None:
+
+        """
+        Update the Member's bonus according to their bonus page.
+        """
+
+        #TODO: Modify this when possible, to get bonus problems.
+
+        """
+        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={self.username()};show=posts")
+        post_page = ProjectEulerRequest(request_url)
+
+        if post_page.status != 200:
+            ProjectEulerRequest.request_failed()
+            raise Exception("Request failed")
+
+        soup = BeautifulSoup(post_page.response, 'html.parser')
+        div = soup.find(id='posts_made_section')
+        """
+
+        pass
+
+
+
     def update_from_database(self, connection = None, data = None) -> None:
 
         """
@@ -1222,12 +1250,11 @@ class Member:
 
 def update_process() -> Optional[List[Dict[str, Any]]]:
     
-    members = Member.members()
+    members: List[Member] = Member.members()
     skipped_member_count = 0
     
     new_changes = []
-    
-    member: Member
+
     for member in members:
         
         if member.have_solves_changed():
@@ -1501,12 +1528,10 @@ def get_global_stats():
 def update_global_stats():
 
     # Open connection to the database
-    # connection = dbqueries.open_con()
     connection = pe_database.open_connection()
 
     # The query to retrieve saved statistics
     temp_query = "SELECT * FROM global_constants;"
-    # previous_data = dbqueries.query(temp_query, connection)
     previous_data = pe_database.query(temp_query, connection=connection)
 
     # Ensure the retrieve was successful
@@ -1514,7 +1539,6 @@ def update_global_stats():
         previous_data = previous_data[0]
     else:
         pe_database.close_connection(connection)
-        # dbqueries.close_con(connection)
         return False
 
     # Assert the current day has not already been retrieved

@@ -1,3 +1,6 @@
+import traceback
+
+from requests import TooManyRedirects
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -141,19 +144,23 @@ def refresh_tokens():
 
 
 
-def is_connected():
-    
-    pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/archives", True)
-    
+def is_connected() -> bool:
+
+    try:
+        pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/archives", True)
+    except TooManyRedirects as exc:
+        pe_api.console.log(exc, traceback.format_exc())
+        return False
+
     if pe_request.status != 200:
         return False
 
     return "Logged in as" in pe_request.response
 
 
-def is_website_down():
-    pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/archives", False)
-    return pe_request.status != 200
+def is_website_active() -> bool:
+    pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/", False)
+    return pe_request.status == 200
 
 
 
