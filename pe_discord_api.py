@@ -1154,6 +1154,7 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
     text_list = "```" + "\n".join(list(map(formatter, current_list))) + "```"
     return await ctx.respond(f"Correctly executed {commands_correctly_treated} commands: {text_list}")
 
+
 @bot.slash_command(name="privacy-settings")
 @option("setting", description="What privacy you want to be associated with your account", choices=["Public", "Private"])
 async def command_privacy_settings(ctx, setting: str):
@@ -1170,6 +1171,82 @@ async def command_privacy_settings(ctx, setting: str):
         m.push_privacy_to_database(True)
 
     return await ctx.respond(f"Your profile has successfully been switched to `{setting}`")
+
+
+@bot.slash_command(name="set-favorite-problem")
+@option("Problem ID", description="The problem you want to set as favorite")
+@option("Reason", description="Why do you love that problem")
+async def command_set_favorite_problem(ctx, problem_id: int, reason: str):
+
+    await ctx.defer()
+
+    regex_to_match = r'^[\w\s.,?!\']*$'
+    if not re.match(regex_to_match, reason):
+        return await ctx.respond(f"The reason you specified contains forbidden characters. (The regex is {regex_to_match})")
+
+    pe_member = pe_api.Member(_discord_id = ctx.author.id)
+    pe_member.push_favorite_to_database(problem_id, reason)
+
+    return await ctx.respond(f"Your favorite problem has been set to `{problem_id}`!")
+
+
+@bot.slash_command(name="remove-favorite-problem")
+async def command_remove_favorite_problem(ctx):
+
+    await ctx.defer()
+
+    pe_member = pe_api.Member(_discord_id = ctx.author.id)
+    pe_member.push_favorite_to_database(None, None)
+
+    return await ctx.respond("Your favorite problem has been removed!")
+
+
+@bot.slash_command(name="get-favorite-problems")
+@option("member", description="Which member", default = None)
+async def command_get_favorite_problems(ctx, member: discord.User = None):
+
+    await ctx.defer()
+
+    if member is not None:
+
+        pe_member = pe_api.Member(_discord_id = member.id)
+        if not pe_member.is_discord_linked():
+            return await ctx.respond("This user does not have a project euler account linked!")
+
+        favorite_problem = pe_member.favorite_problem()
+        reason_favorite = pe_member.reason_favorite_problem()
+
+        if favorite_problem is None:
+            return await ctx.respond("This user has no favorite problem!")
+
+        return await ctx.respond(f"The favorite problem of `{member.name}` is `{favorite_problem}` because: `{reason_favorite}`")
+
+    else:
+
+        members = pe_api.Member.members()
+        favorites: Dict[int, List[Tuple[pe_api.Member, str]]] = {}
+
+        pe_member: pe_api.Member
+        for pe_member in members:
+
+            favorite_id = pe_member.favorite_problem()
+            if favorite_id is not None:
+
+                if favorite_id not in favorites:
+                    favorites[favorite_id] = []
+
+                favorites[favorite_id].append((pe_member, pe_member.reason_favorite_problem()))
+
+        leaderboard_data: List[Tuple[int, str]] = []
+        for favorite_id in favorites:
+
+            number_of_favorites = len(favorites[favorite_id])
+            members_with_this_favorite = ", ".join(list(map(lambda x: x[0].username_option(), favorites[favorite_id])))
+
+            leaderboard_data.append((number_of_favorites, str(favorite_id) + " - " + members_with_this_favorite))
+
+        return await inters.leaderboard_page(ctx, leaderboard_data, True, True, 10)
+
 
 
 @bot.slash_command(name="guess-difficulty")

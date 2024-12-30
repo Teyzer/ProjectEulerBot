@@ -200,7 +200,10 @@ class Member:
         self._database_kudo_array: List[Tuple[int, int]] | None = None # = _database_kudo_array
         self._database_bonus_array: Optional[List[bool]] | None = None
 
+        # Elements that members can change by themselves on the discord
         self._private: Optional[bool] = None # = _private
+        self._favorite_problem: Optional[int] = None
+        self._reason_favorite_problem: Optional[str] = None
 
         for k, val in kwargs.items():
 
@@ -397,6 +400,8 @@ class Member:
                     element["awards_list"].split("|")
                 ))
                 self._private = (element["private"] == 1)
+                self._favorite_problem = element["favorite"]
+                self._reason_favorite_problem = element["reason_favorite"]
                 break
                 
     
@@ -480,6 +485,46 @@ class Member:
 
         pe_database.query_option(temp_query, connection)
         self._private = new_privacy
+
+
+    def favorite_problem(self) -> Optional[int]:
+        """
+        Returns the ID of the favorite problem of the member. Can be None.
+        """
+        if self._favorite_problem is None:
+            self.update_from_database()
+
+        # This can be None! If the user has never made any selection
+        return self._favorite_problem
+
+
+    def reason_favorite_problem(self) -> Optional[str]:
+        """
+        Returns the reason why the member has selected this problem as favorite. Can be None or an empty string.
+        """
+        if self._reason_favorite_problem is None:
+            self.update_from_database()
+
+        # This can be None or an empty string.
+        return self._reason_favorite_problem
+
+
+    def push_favorite_to_database(self, favorite_problem: Optional[int], reason_favorite_problem: Optional[str]) -> None:
+
+        if favorite_problem is None:
+            favorite_problem = 'NULL'
+        else:
+            favorite_problem = f'"{favorite_problem}"'
+
+        if reason_favorite_problem is None:
+            reason_favorite_problem = 'NULL'
+        else:
+            reason_favorite_problem = f'"{reason_favorite_problem}"'
+
+        discord_id = self.discord_id()
+        temp_query = f'UPDATE members SET favorite = {favorite_problem}, reason_favorite = {reason_favorite_problem} WHERE discord_id = "{discord_id}";'
+
+        pe_database.query_single(temp_query)
 
 
     def username(self) -> str:
