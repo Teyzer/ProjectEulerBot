@@ -2,7 +2,6 @@ import json
 import time
 import pe_api
 
-import dbqueries
 import copy
 
 import random
@@ -410,7 +409,7 @@ def update_events(profiles):
 
 if __name__ == "__main__":
 
-    dbqueries.setup_database_keys()
+    # dbqueries.setup_database_keys()
     ev = eventSmoothen()
 
     for mem in pe_api.get_all_usernames_on_project_euler():

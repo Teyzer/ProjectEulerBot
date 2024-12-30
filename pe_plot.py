@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 
 import pe_api
 import pe_image
-import dbqueries
 
 import datetime
 import pytz

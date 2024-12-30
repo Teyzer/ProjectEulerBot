@@ -648,7 +648,7 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
 
 
 @bot.slash_command(name="thread", description="Create a private thread for a specific problem")
-@option("problem", description="The problem you wish to open a thread for", min_value=1)
+@option("problem", description="The problem you wish to open a thread for")
 async def command_thread(ctx, problem: int):
 
     await ctx.defer()
@@ -661,6 +661,9 @@ async def command_thread(ctx, problem: int):
     
     # Get the list of the threads objects on the server where the command was used
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
+    # channel = ctx.guild.get_channel(ctx.channel.id)
+    # available_threads = await fetch_all_threads(channel)
+    console.log(available_threads)
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
     # If a thread already exists (check only with the name), then simply create a new link to it 
@@ -1360,9 +1363,11 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
     channel = guild.get_channel(int(channel_id))
     
     threads = guild.threads
-    async for t in channel.archived_threads(private = True, limit = 100):
-        threads.append(t)
-        
+
+    async for thread_object in channel.archived_threads(private=True, limit=None):
+        threads.append(thread_object)
+
+    # console.log(threads)
     return threads
 
 

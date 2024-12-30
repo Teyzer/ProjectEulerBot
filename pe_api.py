@@ -250,16 +250,19 @@ class Member:
         
         undef_func = lambda x, int_type: \
             (0 if int_type else "Undefined") if x == "" else (int(x) if int_type else x)
+
+        to_solve_bool_array = lambda string_of_01: [
+            c == "1" for c in
+            filter(lambda x: x in "01", string_of_01)
+        ]
         
         self._nickname = undef_func(target_member[1], False)
         self._country = undef_func(target_member[2], False)
         self._language = undef_func(target_member[3], False)
         self._pe_solve_count = undef_func(target_member[4], True)
         self._level = undef_func(target_member[5], True)
-        self._pe_solve_array = [
-            c == "1" for c in 
-            filter(lambda x: x in "01", target_member[6])
-        ]
+        self._pe_solve_array = to_solve_bool_array(target_member[6])
+        self._pe_bonus_array = to_solve_bool_array(target_member[7])
 
     
     def update_from_award_list(self) -> None:
@@ -330,30 +333,6 @@ class Member:
         self._pe_kudo_array = posts
 
 
-    def update_from_bonus_page(self) -> None:
-
-        """
-        Update the Member's bonus according to their bonus page.
-        """
-
-        #TODO: Modify this when possible, to get bonus problems.
-
-        """
-        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={self.username()};show=posts")
-        post_page = ProjectEulerRequest(request_url)
-
-        if post_page.status != 200:
-            ProjectEulerRequest.request_failed()
-            raise Exception("Request failed")
-
-        soup = BeautifulSoup(post_page.response, 'html.parser')
-        div = soup.find(id='posts_made_section')
-        """
-
-        pass
-
-
-
     def update_from_database(self, connection = None, data = None) -> None:
 
         """
@@ -403,6 +382,7 @@ class Member:
                 self._language = element["language"]
                 self._database_solve_count = int(element["solved"])
                 self._database_solve_array = [c == "1" for c in element["solve_list"]]
+                self._database_bonus_array = [c == "1" for c in element["solve_list_bonus"]]
                 self._database_award_count = element["awards"]
                 self._database_award_array = tuple(map(
                     lambda x: [str(c) == "1" for c in x],
@@ -662,10 +642,21 @@ class Member:
         With a problem id, returns whether the member has solved this problem or not.
         """
 
-        if problem - 1 >= len(self.solve_array()):
+        if problem == 0:
             return False
 
-        return self.solve_array()[problem - 1]
+        if problem < 0:
+
+            problem = -problem
+            if problem - 1 >= len(self.solve_bonus_array()):
+                return False
+            return self.solve_bonus_array()[problem - 1]
+
+        if problem > 0:
+
+            if problem - 1 >= len(self.solve_array()):
+                return False
+            return self.solve_array()[problem - 1]
     
 
     def award_count(self) -> int:
@@ -853,7 +844,45 @@ class Member:
         if self._level is None:
             self.update_from_database()
         return self._level
-            
+
+
+    def solve_bonus_array(self) -> List[bool]:
+
+        if self._pe_bonus_array is not None:
+            return self._pe_bonus_array
+        elif self._database_bonus_array is not None:
+            return self._database_bonus_array
+
+        self.update_from_friend_list()
+        if self._pe_bonus_array is None:
+            raise ValueError("_pe_bonus_array should not be None after update from friend list.")
+
+        return self._pe_bonus_array
+
+
+    def pe_solve_bonus_array(self) -> List[bool]:
+
+        if self._pe_bonus_array is not None:
+            return self._pe_bonus_array
+
+        self.update_from_friend_list()
+        if self._pe_bonus_array is None:
+            raise ValueError("_pe_bonus_array should not be None after update from friend list.")
+
+        return self._pe_bonus_array
+
+
+    def database_solve_bonus_array(self) -> List[bool]:
+
+        if self._database_bonus_array is not None:
+            return self._database_bonus_array
+
+        self.update_from_database()
+        if self._database_bonus_array is None:
+            raise ValueError("_database_bonus_array should not be None after update from database.")
+
+        return self._database_bonus_array
+
 
     def discord_id(self) -> str:
         """
@@ -1063,6 +1092,9 @@ class Member:
         solve_list = "".join([
             "01"[boolean] for boolean in self.pe_solve_array()
         ])
+        solve_bonus_list = "".join([
+            "01"[boolean] for boolean in self.pe_solve_bonus_array()
+        ])
         
         username = self.username()
         nickname = self.nickname()
@@ -1079,14 +1111,15 @@ class Member:
             ])
             
             temp_query = f"INSERT INTO members (username, nickname, country, language, solved, \
-                solve_list, discord_id, awards, awards_list, private) VALUES (\
+                solve_list, discord_id, awards, awards_list, private, solve_list_bonus) VALUES (\
                 '{username}', '{nickname}', '{country}', '{language}', \
-                {solved}, '{solve_list}', '', {awards}, '{awards_list}', 0);"
+                {solved}, '{solve_list}', '', {awards}, '{awards_list}', 0, '{solve_bonus_list}');"
                 
         else:
             temp_query = f"UPDATE members SET nickname='{nickname}', \
                 country='{country}', language='{language}', solved={solved},\
-                solve_list='{solve_list}' WHERE username='{username}';"
+                solve_list='{solve_list}', solve_list_bonus='{solve_bonus_list}' \
+                WHERE username='{username}';"
                 
         # print(temp_query)
         pe_database.query_single(temp_query)
@@ -1164,7 +1197,7 @@ class Member:
             if username == "":
                 continue
             
-            current = Member(username)
+            current = Member(_username=username)
             current.update_from_database(data = database_data)
             
             result_list.append(current)
@@ -1199,7 +1232,7 @@ class Member:
             if username == "":
                 continue
         
-            current = Member(username)
+            current = Member(_username=username)
             current.update_from_friend_list(project_euler_data)
             
             if username in database_usernames:
