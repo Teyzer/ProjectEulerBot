@@ -322,9 +322,17 @@ class Member:
         post_made = int(post_made.split(" ")[2])
         kudos_earned = int(kudos_earned.split(" ")[2])
 
+        def format_function(element: str) -> int:
+            """
+            Used to adapt to bonus problems
+            """
+            if element[0] == "B":
+                element = "-" + element[1:]
+            return int(element)
+
         posts = list(map(
             lambda post: tuple(map(
-                lambda x: int(x.text), 
+                lambda x: format_function(x.text),
                 post.find_all("span")
             )), div.find_all(class_="post_made_box")
         ))
@@ -823,6 +831,14 @@ class Member:
             raise ValueError("_pe_kudo_array should not be None after update from post page.")
 
         return self._pe_kudo_array
+
+
+    def has_kudos_in_database(self) -> bool:
+
+        temp_query = f"SELECT * FROM pe_posts WHERE username = '{self.username()}';"
+        query_result = pe_database.query_single(temp_query)
+
+        return len(query_result) > 0
     
 
     def database_kudo_array(self) -> List[Tuple[int, int]]:
@@ -1075,9 +1091,17 @@ class Member:
         formatted = "|".join(list(map(
             lambda el: "n".join(list(map(str, el))), kudos
         )))
-    
-        temp_query = f"INSERT INTO pe_posts (username, posts_number, kudos, posts_list) \
-            VALUES ('{self.username()}', 0, {self.kudo_count()}, '{formatted}');"
+
+        is_in_database_query = f"SELECT * FROM pe_posts WHERE username = '{self.username()}';"
+        is_in_database_response = pe_database.query_single(is_in_database_query)
+        is_in_database = len(is_in_database_response) > 0
+
+        if is_in_database:
+            temp_query = f"UPDATE pe_posts SET kudos = {self.kudo_count()}, posts_list = '{formatted}' \
+                WHERE username = '{self.username()}';"
+        else:
+            temp_query = f"INSERT INTO pe_posts (username, posts_number, kudos, posts_list) \
+                VALUES ('{self.username()}', 0, {self.kudo_count()}, '{formatted}');"
 
         pe_database.query_single(temp_query)
 

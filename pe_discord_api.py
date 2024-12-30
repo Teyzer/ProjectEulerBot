@@ -412,26 +412,31 @@ async def command_kudos(ctx, member: discord.User):
 
     await ctx.defer()
 
-    m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
+    pe_member = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    if not m.is_discord_linked():
+    if not pe_member.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
     
-    if m.private() and m.discord_id() != str(ctx.author.id):
+    if pe_member.private() and pe_member.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
-    new_kudos = m.get_new_kudos()
-    m.push_kudo_to_database()
+    if not pe_member.has_kudos_in_database():
+        pe_member.push_kudo_to_database()
+        return await ctx.respond("Your current posts have been saved in the database. Next time you use this command,"
+                                 "the bot will display how manny kudos you earned.")
+
+    new_kudos = pe_member.get_new_kudos()
+    pe_member.push_kudo_to_database()
     
-    kudo_count = m.kudo_count()
+    kudo_count = pe_member.kudo_count()
     
     change = sum([el[1] for el in new_kudos])
 
     if change == 0:
-        return await ctx.respond("No change for user `{0}`, still {1} kudos (Always displayed when first using the command)".format(m.username_option(), kudo_count))
+        return await ctx.respond(f"No change for user `{pe_member.username_option()}`, still {kudo_count} kudos.")
     else:
         k = "```" + "\n".join(list(map(lambda x: ": ".join(list(map(str, x))), new_kudos))) + "```"
-        return await ctx.respond("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(m.username_option(), change, kudo_count) + k)
+        return await ctx.respond("There was some change for user `{0}`! You gained {1} kudos on the following posts (for a total of {2} kudos):".format(pe_member.username_option(), change, kudo_count) + k)
 
 
 @bot.slash_command(name="easiest", description="Find the easiest problems you haven't solved yet")
@@ -1175,6 +1180,12 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
 
     await ctx.defer()
 
+    if problem_id < 0:
+        return await ctx.respond("Problem ID is out of range, I cannot evaluate the difficulty of bonus problems.")
+
+    if problem_id == 0 or problem_id > len(pe_api.PE_Problem.complete_list()):
+        return await ctx.respond("Problem ID is out of range.")
+
     data_filename = "saved_data/fastest_solves.json"
     with open(data_filename, "r") as f:
         data = json.load(f)
@@ -1184,7 +1195,7 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     problem_data = pe_api.get_fastest_solvers(problem_id)
     solve_count = len(problem_data.keys())
     
-    new_dictionnary = {}
+    new_dictionary = {}
 
     for prob_id in data.keys():
 
@@ -1194,13 +1205,13 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
         if len(data[prob_id].keys()) < 100:
             continue
 
-        new_dictionnary[prob_id] = {}
+        new_dictionary[prob_id] = {}
         for position in data[prob_id].keys():
             
             if int(position) <= solve_count:
-                new_dictionnary[prob_id][position] = data[prob_id][position]
+                new_dictionary[prob_id][position] = data[prob_id][position]
 
-    def dist(arr1, arr2):
+    def own_distance(arr1, arr2):
 
         total = 0
 
@@ -1210,7 +1221,7 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
         
         return total
 
-    nearests = sorted(new_dictionnary.keys(), key=lambda k: dist(problem_data, new_dictionnary[k]), reverse=False)
+    nearests = sorted(new_dictionary.keys(), key=lambda k: own_distance(problem_data, new_dictionary[k]), reverse=False)
     all_problems = pe_api.PE_Problem.complete_list()
 
     to_keep = list(map(int, nearests[:neighbors]))
