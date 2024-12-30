@@ -604,34 +604,36 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
 
     await ctx.defer()
 
-    return await ctx.respond("Due to an issue concerning privacy, this command isn't available currently. This should only last for a few days at most, sorry!")
-
-
+    # return await ctx.respond("Due to an issue concerning privacy, this command isn't available currently. This should only last for a few days at most, sorry!")
     if first_member is None or second_member is None:
         return await ctx.respond("Please specify two valid users!")
-    
-    first_username = pe_api.project_euler_username(first_member.id)
-    second_username = pe_api.project_euler_username(second_member.id)
 
-    if not first_username or not second_username:
-        return await ctx.respond("One of the two users (or both) has not linked their project euler account");
+    first_pe_member = pe_api.Member(_discord_id = first_member.id)
+    second_pe_member = pe_api.Member(_discord_id = second_member.id)
 
-    first_solves = pe_api.problems_of_member(first_username)
-    second_solves = pe_api.problems_of_member(second_username)
+    if not first_pe_member.is_discord_linked() or not second_pe_member.is_discord_linked():
+        return await ctx.respond("One of the two users has not linked their project euler account!")
+
+    if first_pe_member.private() or second_pe_member.private():
+        return await ctx.respond("One of the two users has a private profile.")
+
+    first_username = first_pe_member.username_option()
+    second_username = second_pe_member.username_option()
 
     common_solves = []
     common_not_solves = []
     only_first_solves = []
     only_second_solves = []
 
-    last_pb = pe_api.last_problem()
+    last_problem_id = pe_api.last_problem()
 
-    for index in range(1, last_pb + 1):
-        if first_solves[index - 1] == "1" and second_solves[index - 1] == "1":
+    for index in range(1, last_problem_id + 1):
+
+        if first_pe_member.has_solved(index) and second_pe_member.has_solved(index):
             common_solves.append(index)
-        elif first_solves[index - 1] == "1" and second_solves[index - 1] == "0":
+        elif first_pe_member.has_solved(index) and not second_pe_member.has_solved(index):
             only_first_solves.append(index)
-        elif first_solves[index - 1] == "0" and second_solves[index - 1] == "1":
+        elif not first_pe_member.has_solved(index) and second_pe_member.has_solved(index):
             only_second_solves.append(index)
         else:
             common_not_solves.append(index)
@@ -666,9 +668,6 @@ async def command_thread(ctx, problem: int):
     
     # Get the list of the threads objects on the server where the command was used
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
-    # channel = ctx.guild.get_channel(ctx.channel.id)
-    # available_threads = await fetch_all_threads(channel)
-    console.log(available_threads)
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
     # If a thread already exists (check only with the name), then simply create a new link to it 

@@ -132,8 +132,6 @@ def generate_individual_graph(file_content: str, username: str) -> str:
 
     temp_epsilon = 1000
 
-    # print(solves)
-
     starting_timestamp = list(filter(
         lambda el: el[1].timestamp() - temp_epsilon > minimal_date.timestamp(), 
         solves

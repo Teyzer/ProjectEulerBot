@@ -10,6 +10,8 @@ from collections import deque
 import glob
 import os
 
+from typing import List
+
 
 # create Image object
 general_color = 'dark_blue'  # grey,light_blue,blue,orange,purple,yellow,green
@@ -195,6 +197,51 @@ def add_max_solve(image, data: list, timestamp: float, frame: int, total_frame: 
     text_adder(image, "Max solves in a 24H range", (255, 255, 255), (390, 290), 12)
 
 
+def add_min_and_max_solve_difference(image, data: List[List], timestamp: float, frame: int, total_frame: int) -> None:
+
+    to_keep_solves = list(filter(lambda element: element[1].timestamp() < timestamp, data))
+
+    min_difference = 10000000000000
+    max_difference = 0
+
+    for index in range(len(to_keep_solves) - 1):
+
+
+        timestamp_before = to_keep_solves[index][1].timestamp()
+        timestamp_after = to_keep_solves[index + 1][1].timestamp()
+
+        minimal_date = datetime.datetime(1985, 1, 1, 0, 0, 0)
+        if timestamp_before < minimal_date.timestamp():
+            continue
+
+        difference = timestamp_after - timestamp_before
+
+        min_difference = min(min_difference, difference)
+        max_difference = max(max_difference, difference)
+
+    def format_date(d: datetime.timedelta) -> str:
+        if d.days > 1:
+            return f"{d.days} days"
+        if d.seconds // 3600 >= 1:
+            return f"{d.seconds // 3600} hours"
+        return f"{d.seconds // 60} minutes"
+
+    if len(to_keep_solves) <= 1:
+        min_difference = 0
+        max_difference = 0
+
+    min_time_diff = datetime.timedelta(seconds=min_difference)
+    max_time_diff = datetime.timedelta(seconds=max_difference)
+
+    difference_text = format_date(min_time_diff) + " / " + format_date(max_time_diff)
+
+    draw = ImageDraw.Draw(image, "RGBA")
+    draw.rectangle(((390, 190), (580, 210)), outline=(255, 255, 255), fill=(0, 0, 0), width=1)
+
+    text_adder(image, difference_text, (255, 255, 255), (430, 192), 12)
+    text_adder(image, "Min / Max time between 2 solves", (255, 255, 255), (390, 170), 12)
+
+
 def add_solve_count(image, solves_at_this_point: set):
 
     draw = ImageDraw.Draw(image, "RGBA")
@@ -238,6 +285,7 @@ def image_for_timestamp_user_solve(data: list, timestamp: float, username: str, 
     add_watermark(image)
     add_max_solve(image, data, timestamp, frame, total_frame)
     add_solve_count(image, solves_at_this_point)
+    add_min_and_max_solve_difference(image, data, timestamp, frame, total_frame)
 
     text_adder(image, username, (255, 255, 255), (390, 70), 25)
     text_adder(image, "Frame {0}".format(len(os.listdir(f"graphs/{username}/"))), (255, 255, 255), (390, 100), 10)
