@@ -110,7 +110,7 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
     solves = list(map(lambda l: l.split(seperator), new_file_content))
 
     solves = list(filter(lambda element: len(element) > 1, solves))
-
+    solves = list(filter(lambda element: element[1][0] != "B", solves))
 
     for i in range(len(solves)):
         solves[i][0] = str(solves[i][0])
