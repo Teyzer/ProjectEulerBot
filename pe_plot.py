@@ -1,3 +1,5 @@
+from typing import Optional
+
 import plotly.express as px
 import plotly.io as pio
 import matplotlib.pyplot as plt
@@ -109,12 +111,15 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
     new_file_content = file_content.split("\n")
     solves = list(map(lambda l: l.split(seperator), new_file_content))
 
+    # Remove blank lines
     solves = list(filter(lambda element: len(element) > 1, solves))
-    solves = list(filter(lambda element: element[1][0] != "B", solves))
+
+    # Not showing up bonus problems for now
+    solves = list(filter(lambda element: element[2][0] != "B", solves))
 
     for i in range(len(solves)):
-        solves[i][0] = str(solves[i][0])
-        solves[i] = [int(solves[i][1]), project_euler_date_converter(solves[i][0])]
+        solves[i][1] = str(solves[i][1])
+        solves[i] = [int(solves[i][2]), project_euler_date_converter(solves[i][1])]
     solves = solves[::-1]
     
     return solves
@@ -122,7 +127,7 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
 
 
 
-def generate_individual_graph(file_content: str, username: str) -> str:
+def generate_individual_graph(file_content: str, username: str) -> Optional[str]:
     
     minimal_date = datetime.datetime(1980, 1, 1, 0, 0, 0)
     solves = format_data_for_individual_graph(file_content, username)
@@ -139,7 +144,10 @@ def generate_individual_graph(file_content: str, username: str) -> str:
 
     difference = solves[-1][1].timestamp() - starting_timestamp + temp_epsilon
 
-    problems = pe_api.problems_list()[1:-1]
+    try:
+        problems = pe_api.problems_list()[1:-1]
+    except Exception as _:
+        return None
 
     for percentage in range(frame_count + 1):
         

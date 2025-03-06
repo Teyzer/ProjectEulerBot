@@ -1438,28 +1438,6 @@ def project_euler_username(discord_id, connection=None) -> str:
     return data[0]["username"]
 
 
-# returns a list of the form [profile1, profile2, profile3, ...]
-# with profile1 of the form [username, nickname, country, language, solved, level, list of solve]
-# and list of solve being of the form 1111100010000111 and so on
-# Note that all values are strings
-def get_all_profiles_on_project_euler():
-
-    url = BASE_URL.format("friends")
-    data = ProjectEulerRequest(url).response
-    if data is None:
-        pass
-
-    members = list(map(lambda x: x.split("##"), data.split("\n")))
-    return members[:-1]
-
-
-# returns a list of the form [username1, username2, username3, ...]
-def get_all_usernames_on_project_euler():
-
-    profiles = get_all_profiles_on_project_euler()
-    return list(map(lambda x: x[0], profiles))
-
-
 # Essentially does the same thing as get_all_members_who_solved, but returns the entire profiles
 # Returns a list with format [[username1: str, discord_id1: str], [username2: str, discord_id2: str], ....]
 def get_all_discord_profiles_who_solved(problem: int):
@@ -1476,42 +1454,7 @@ def get_all_discord_profiles_who_solved(problem: int):
         if member.is_discord_linked() and member.has_solved(problem):
             solvers.append([member.username(), member.discord_id()])
 
-    """
-    profiles = get_all_profiles_in_database()
-
-    for k in profiles.keys():
-        profile = profiles[k]
-        
-        if len(profile["solve_list"]) >= problem and profile["solve_list"][problem - 1] == "1" and profile["discord_id"] != "":
-            solvers.append([profile["username"], profile["discord_id"]])
-    """
-
     return solvers
-
-
-# return a binary string like "111110001100..." with every 1 marking a solve
-# use a project euler request, not a request to the database (should not change anything)
-def problems_of_member(username):
-
-    url = BASE_URL.format("friends")
-    data = ProjectEulerRequest(url).response
-    if data is None:
-        pass
-
-    members = list(map(lambda x: x.split("##"), data.split("\n")))
-
-    usernames = list(map(lambda x: x[0], members))
-    if username not in usernames:
-        return None
-
-    member_solves = members[usernames.index(username)][6]
-
-    return member_solves
-
-
-# returns a list of all the profiles in the database 
-def get_all_profiles_in_database():
-    return dbqueries.single_req("SELECT * FROM members;")
 
 
 # return a list of all the names of the awards
@@ -1526,15 +1469,6 @@ def get_awards_specs():
     div2 = awards_container[1]
     div3 = awards_container[2]
 
-    # problem_awards = div1.find_all(class_="award_box")
-    # solves_problem = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in problem_awards]
-
-    # problem_publication = div2.find_all(class_="award_box")
-    # solves_publication = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in problem_publication]
-    
-    # forum_awards = div3.find_all(class_="award_box")
-    # solves_forum = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in forum_awards]
-
     all_awards = []
 
     problem_awards = div1.find_all(class_="tooltip inner_box")
@@ -1546,30 +1480,18 @@ def get_awards_specs():
     forum_awards = div3.find_all(class_="award_box")
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in forum_awards])
 
-    # d_problems = soup.find(id="forum_based_awards_section").find_all(class_="tooltip inner_box")
-    
-    # all_awards.append([problem.find_all(class_="strong")[0].text for problem in d_problems])
-
     return all_awards
 
 
 # Get the solves of the last few days in the database
 def get_solves_in_database():
 
-    # connection = dbqueries.open_con()
     connection = pe_database.open_connection()
 
     temp_query = "SELECT * FROM solves;"
-    # if days_count == 0:
-    #     temp_query = "SELECT * FROM solves"
-    # else:
-    #     temp_query = "SELECT * FROM solves WHERE DATE(solve_date) BETWEEN DATE(CURRENT_DATE() - INTERVAL {0} DAY) AND DATE(CURRENT_DATE());"
-    #     temp_query = temp_query.format(days_count)
     
     data = pe_database.query(temp_query, connection)
-    # data = dbqueries.query(temp_query, connection)
     pe_database.close_connection(connection)
-    # dbqueries.close_con(connection)
 
     return data
 
@@ -1670,16 +1592,13 @@ def update_global_stats():
     temp_query = "INSERT INTO global_stats (solves, levels, awards, date_stat) VALUES ({0}, {1}, {2}, datetime('now'));"
     temp_query = temp_query.format(problem_diff, level_diff, award_diff)
     pe_database.query(temp_query, connection)
-    # dbqueries.query(temp_query, connection)
 
     # Update the last data
     temp_query = "UPDATE global_constants SET solves_count = {0}, levels_count = {1}, awards_count = {2}, saved_date = datetime('now');"
     temp_query = temp_query.format(problem_count, level_count, award_count)
     pe_database.query(temp_query, connection)
-    # dbqueries.query(temp_query, connection)
 
-
-    # Alert my phone that everything has went as planned
+    # Alert my phone that everything has gone as planned
     phone_api.bot_success("Added stats for day " + current_day)
     pe_database.close_connection(connection)
 
@@ -1723,7 +1642,7 @@ def get_fastest_solvers(problem: int):
 
         solve_time_string = lines[4].text
 
-        correspondances = {
+        correspondences = {
             "second": 1,
             "minute": 60,
             "hour": 3600,
@@ -1733,11 +1652,11 @@ def get_fastest_solvers(problem: int):
         }
 
         solve_time = 0
-        for k in correspondances.keys():
+        for k in correspondences.keys():
             for part_str in solve_time_string.split(", "):
                 
                 if k in part_str:
-                    solve_time += correspondances[k] * int(part_str.split()[0])
+                    solve_time += correspondences[k] * int(part_str.split()[0])
 
         data[str(rank)] = {"username": username, "solve_time": solve_time}
 
@@ -1777,17 +1696,5 @@ if __name__ == "__main__":
     print(m.has_solved(906))
 
     print(last_problem_database())
-
-    # minimals = ""
-
-    # l = 903
-
-    # for i in range(1, l + 1):
-    #     txt = ProjectEulerRequest(BASE_URL.format(str(i))).response
-    #     minimals += f"Problem #{i}" + txt + "\n\n"
-    #     console.log(i)
-
-    # with open("saved_data/minimals.txt", "w") as f:
-    #     f.write(minimals)
     
     

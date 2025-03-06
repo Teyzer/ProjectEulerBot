@@ -550,12 +550,15 @@ async def on_message(message):
             content = requests.get(file_url).text
             file_path = pe_plot.generate_individual_graph(content, username)
 
-            await message.channel.send("", file=discord.File(file_path))
+            if file_path is None:
+                await message.channel.send("I could not generate the graph, it requires to know when was each problem published and the request to the server failed.")
+            else:
+                await message.channel.send("", file=discord.File(file_path))
 
-            path = f"graphs/{username}/"
-            files = glob.glob(path + "*")
-            for f in files:
-                os.remove(f)
+                path = f"graphs/{username}/"
+                files = glob.glob(path + "*")
+                for f in files:
+                    os.remove(f)
 
 
 
