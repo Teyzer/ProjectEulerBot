@@ -660,7 +660,10 @@ async def command_thread(ctx, problem: int):
 
     await ctx.defer()
 
-    last_pb = pe_api.last_problem()
+    try:
+        last_pb = pe_api.last_problem()
+    except Exception as _:
+        last_pb = pe_api.last_problem_database()
     
     # Just to ensure there's no unused thread
     if problem > last_pb:

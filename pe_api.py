@@ -1466,7 +1466,11 @@ def get_all_discord_profiles_who_solved(problem: int):
 
     solvers = []
 
-    members: List[Member] = Member.members()
+    try:
+        members: List[Member] = Member.members()
+    except Exception as _:
+        members: List[Member] = Member.members_database()
+
     for member in members:
 
         if member.is_discord_linked() and member.has_solved(problem):
