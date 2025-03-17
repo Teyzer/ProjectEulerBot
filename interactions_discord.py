@@ -127,7 +127,7 @@ def problem_thread_view(problem_number: int):
 
         # If the user did not solve, send an "ephemeral" message that only them will be able to sees
         if int(interaction.user.id) not in allowed_discord_ids:
-            return await interaction.followup.send("Sorry, you did not solve problem #{0}. If you did solve it, please link your account first".format(problem_number), ephemeral=True)
+            return await interaction.followup.send("Sorry, you did not solve [problem #{0}](https://projecteuler.net/problem={0}). If you did solve it, please link your account first.".format(problem_number), ephemeral=True)
             
         # Otherwise, iterate through available threads, and when the name matches, add the user to the list of participants
         available_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id)

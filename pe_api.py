@@ -1190,7 +1190,6 @@ class Member:
                 solve_list='{solve_list}', solve_list_bonus='{solve_bonus_list}' \
                 WHERE username='{username}';"
                 
-        # print(temp_query)
         pe_database.query_single(temp_query)
         
 
