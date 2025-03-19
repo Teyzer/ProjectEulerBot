@@ -10,7 +10,7 @@ from collections import deque
 import glob
 import os
 
-from typing import List
+from typing import List, Tuple, Optional
 
 
 # create Image object
@@ -103,7 +103,7 @@ def generate_profile_image(username, solved_by, total_problems, rank_in_discord,
     return "images_saves/{0}.png".format(username)
 
 
-def add_box_user_solve(problem: int, fill: bool, img):
+def add_box_user_solve(problem: int, fill: bool, img: Image, fill_color: Optional[Tuple[int, int, int]] = None) -> None:
 
     width_pos = 1
     height_pos = 1
@@ -131,9 +131,15 @@ def add_box_user_solve(problem: int, fill: bool, img):
 
     draw = ImageDraw.Draw(img, "RGBA")
 
-    img_color = 220 if fill else 0
-    filler = (img_color, img_color, img_color)
-
+    if not fill:
+        filler = (0, 0, 0)
+    elif fill_color is None:
+        filler = (220, 220, 220)
+    else:
+        filler = fill_color
+        
+    # print(filler, problem)
+    
     outliner_color = 255
     outliner = (outliner_color, outliner_color, outliner_color)
 
@@ -313,7 +319,11 @@ def concatenate_image_gif(username: str):
 
 
 
-def project_euler_grid(cells_to_fill: list) -> str:
+def project_euler_grid(cells_to_fill: List[Tuple[int, Tuple[int, int, int]]]) -> str:
+
+    """
+    A list of cells to fill, with the associated color
+    """
 
     dimensions = (360, 470)
 
@@ -324,11 +334,14 @@ def project_euler_grid(cells_to_fill: list) -> str:
     last_problem = pe_api.last_problem()
 
     fill_option = [False for i in range(last_problem + 1)]
-    for cell in cells_to_fill:
-        fill_option[cell] = True
+    color_option = [None for i in range(last_problem + 1)]
+    
+    for cell_index, cell_color in cells_to_fill:
+        fill_option[cell_index] = True
+        color_option[cell_index] = cell_color
 
     for problem in range(1, last_problem + 1):
-        add_box_user_solve(problem, fill_option[problem], img)
+        add_box_user_solve(problem, fill_option[problem], img, color_option[problem])
 
     path = "images_saves/temp/"
     sz = len(os.listdir(path))

@@ -640,6 +640,20 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
         else:
             common_not_solves.append(index)
 
+    mix_color = (70, 70, 70)
+    color_one = (255, 140, 0)
+    color_two = (0, 105, 148)
+
+    solves_with_color = []
+    for solve in common_solves:
+        solves_with_color.append((solve, mix_color))
+    for solve in only_first_solves:
+        solves_with_color.append((solve, color_one))
+    for solve in only_second_solves:
+        solves_with_color.append((solve, color_two))
+        
+    grid_image = pe_image.project_euler_grid(solves_with_color)
+
     if len(only_first_solves) == 0:
         only_first_solves = ["None actually"]
     if len(only_second_solves) == 0:
@@ -653,7 +667,8 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
     response_text += "Problems solved by `{0}` and not by `{1}`: ".format(second_username, first_username)
     response_text += "```" + ", ".join(list(map(str, only_second_solves))[:max_display]) + (" ({0} more)".format(len(only_second_solves) - max_display) if len(only_second_solves) > max_display else "") + "```"
 
-    return await ctx.respond(response_text)
+    await ctx.respond(response_text, file = discord.File(grid_image))
+    os.remove(grid_image)
 
 
 @bot.slash_command(name="thread", description="Create a private thread for a specific problem")
@@ -800,7 +815,9 @@ async def command_events_data(ctx, event: str):
         ev = pe_events.eventSoPE()
         solves = list(map(int, ev.data["solves"].keys()))
         
-        grid_image = pe_image.project_euler_grid(solves)
+        solves_with_color = list(map(lambda x: (x, (220, 220, 220)), solves))
+        
+        grid_image = pe_image.project_euler_grid(solves_with_color)
         fls.append(grid_image)
 
         await ctx.respond("", file=discord.File(fls[1]))
@@ -827,69 +844,41 @@ async def commmand_grid(ctx, member: discord.User):
         if boolean:
             solves.append(index + 1)
 
-    grid_image = pe_image.project_euler_grid(solves)
+    solves_with_color = list(map(lambda x: (x, (220, 220, 220)), solves))
+    grid_image = pe_image.project_euler_grid(solves_with_color)
     
     await ctx.respond(f"Here is the grid for user `{m.username_option()}`", file=discord.File(grid_image))
     os.remove(grid_image)
     
+    
+@bot.slash_command(name="grid-animation", description="Get the solve grid of an user")
+@option("member", description="The targetted user", default = None)
+async def commmand_grid_animation(ctx, member: discord.User):
+    
+    await ctx.defer()
 
-# @bot.slash_command(name="has-been-claimed", description="Get the status")
-# @option("problem", description="Which problem", min=1)
-# async def command_has_been_claimed(ctx, problem: int):
+    m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-#     await ctx.defer()
+    if not m.is_discord_linked():
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-#     ev = pe_events.eventSoPE()
+    if m.private() and m.discord_id() != str(ctx.author.id):
+        return await ctx.respond("This user has a private profile.")
+    
+    username = m.username_option()
+    content = m.solve_csv()
+    
+    file_path = pe_plot.generate_individual_graph(content, username)
 
-#     if ev.is_problem_solved(problem):
-#         claimer = pe_api.Member(_username = ev.data["solves"][str(problem)]["username"])
-#         return await ctx.respond(f"Problem {problem} has already been claimed by {claimer.username_ping()} (SoPE event)", allowed_mentions = discord.AllowedMentions(users = False))
-#     else:
-#         return await ctx.respond(f"Problem {problem} has not been claimed yet (SoPE event)")
+    if file_path is None:
+        await ctx.respond("I could not generate the graph, it requires to know when was each problem published and the request to the server failed.")
+    else:
+        await ctx.respond("", file=discord.File(file_path))
 
-
-# @bot.slash_command(name="easiest-sope", description="Get the easiests problems available in the SoPE")
-# @option("member", description="The member you want to use it on", default = None)
-# @option("display_nb", description="The number of problem you want dislayed", default=10, min=1, max=25)
-# async def command_easiest_sope(ctx, member: discord.User, display_nb: int):
-
-#     await ctx.defer()
-
-#     discord_id = ctx.author.id
-#     if member is not None:
-#         discord_id = member.id
-
-#     m = pe_api.Member(_discord_id = discord_id)
-
-#     if not m.is_discord_linked():
-#         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
-
-#     if m.private() and m.discord_id() != str(ctx.author.id):
-#         return await ctx.respond("This user has a private profile.")
-
-#     problem_specs = pe_api.PE_Problem.complete_list()
-#     problem_list = [problem_specs[i - 1] for i in m.unsolved_problems()]
-
-#     ev = pe_events.eventSoPE()
-#     problems = list(filter(
-#         lambda pb: not ev.is_problem_solved(pb.problem_id),
-#         problem_list
-#     ))
-
-#     problems = sorted(
-#         problems,
-#         key=lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication)), 
-#         reverse=True
-#     )
-
-#     problems = problems[:display_nb]
-
-#     lst = "```" + "\n".join(list(map(
-#         lambda pb: f"Problem #{pb.problem_id}: '{pb.name}' solved by {pb.solves} members", 
-#         problems
-#     ))) + "```"
-
-#     return await ctx.respond(f"Here are the {display_nb} easiest problems available to `{m.username_option()}` for SoPE:" + lst)
+        path = f"graphs/{username}/"
+        files = glob.glob(path + "*")
+        for f in files:
+            os.remove(f)
 
 
 @bot.slash_command(name="update-roles")

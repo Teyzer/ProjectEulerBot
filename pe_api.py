@@ -588,6 +588,18 @@ class Member:
             self.update_from_database()
         return self._language
     
+    
+    def solve_csv(self) -> str:
+        """
+        Returns a CSV string of the solves of the member.
+        """
+
+        csv_url = f"https://projecteuler.net/history={self.username()}"
+        req = ProjectEulerRequest(csv_url)
+        
+        csv_content = req.response
+        return csv_content
+    
 
     def solve_count(self) -> int:
 
