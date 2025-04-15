@@ -724,25 +724,36 @@ async def command_list_threads(ctx):
     # Allow for more than 3 seconds of thought
     await ctx.defer()
 
-    available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
-
     # Get the list of all available threads, and retrieve only their name
-    available_threads = list(map(lambda element: element.name, available_threads))
+    threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
+    threads = [x.name for x in threads]
 
     # Keep only those that fit the name for the threads created by the bot
-    available_threads = list(filter(lambda element: "Problem #" in element and "discussion" in element, available_threads))
-    
-    # And split it in order to only get the numbers
-    available_threads = list(map(lambda element: element.split()[1][1:], available_threads))
+    threads = [x for x in threads if x.startswith('Problem #') and x.endswith(" discussion")]
 
-    # Put them in the right order
-    available_threads = sorted(available_threads, key = lambda element: int(element))
+    # Get the list of numbers. Go through a set to get rid of duplicates -
+    # there seem to be multiple threads for some problems?
+    threads = list({int(x.split()[1][1:]) for x in threads})
+    threads.sort()
 
-    # Just in case threads expire
-    if len(available_threads) == 0:
-        available_threads.append("None actually")
+    # Merge consecutive threads into runs like "12-15".
+    # Do not do this for negative bonus problems to avoid "-3--2".
+    threads.append(threads[-1]+2)
+    runs = []
+    start = None
+    for i in range(len(threads)-1):
+        if start is None:
+            start = threads[i]
+        if threads[i+1] == threads[i]+1 and start > 0:
+            continue
+        end = threads[i]
+        if start == end:
+            runs.append(str(start))
+        else:
+            runs.append(f"{start}-{end}")
+        start = None
 
-    available_message = "Here are the problems with an open thread: ```" + ", ".join(available_threads) + "```"
+    available_message = "Here are the problems with an open thread: ```" + ", ".join(runs) + "```"
 
     return await ctx.respond(available_message)
 
