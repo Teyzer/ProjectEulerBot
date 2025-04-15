@@ -640,9 +640,9 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
         else:
             common_not_solves.append(index)
 
-    mix_color = (70, 70, 70)
-    color_one = (255, 140, 0)
-    color_two = (0, 105, 148)
+    mix_color = (255,87,51)
+    color_one = (199,0,57)
+    color_two = (255,195,15)
 
     solves_with_color = []
     for solve in common_solves:

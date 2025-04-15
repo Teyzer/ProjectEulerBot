@@ -13,6 +13,7 @@ LANGUAGES_ROLES = {
     "C": [1034588396129095690, "🇨", None],
     "C#": [979775187786563584, "🎵", None],
     "C++": [979775061877747733, "➕", None],
+    "Elixir": [1355624521641496816, "💧", None],
     "Go": [979776131303616555, "🏁", None],
     "Haskell": [979775640876236822, "🍛", None],
     "Java": [979775476606304286, "☕", None],
@@ -127,7 +128,7 @@ def problem_thread_view(problem_number: int):
 
         # If the user did not solve, send an "ephemeral" message that only them will be able to sees
         if int(interaction.user.id) not in allowed_discord_ids:
-            return await interaction.followup.send("Sorry, you did not solve [problem #{0}](https://projecteuler.net/problem={0}). If you did solve it, please link your account first.".format(problem_number), ephemeral=True)
+            return await interaction.followup.send("Sorry, you did not solve [problem #{0}](<https://projecteuler.net/problem={0}>). If you did solve it, please link your account first.".format(problem_number), ephemeral=True)
             
         # Otherwise, iterate through available threads, and when the name matches, add the user to the list of participants
         available_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id)

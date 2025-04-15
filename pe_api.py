@@ -598,6 +598,17 @@ class Member:
         req = ProjectEulerRequest(csv_url)
         
         csv_content = req.response
+        
+        lines = list(filter(lambda x: x.strip() != '', csv_content.split("\n")))
+        problems_ids = set(map(lambda x: x.split(',')[2], lines))
+        
+        line_format = '0,01 Jan 70 (01:00),{problem_id},"random title"'
+        
+        for solve in self.solved_problems():
+            if str(solve) not in problems_ids:
+                lines.append(line_format.format(problem_id=solve))
+        
+        csv_content = "\n".join(lines)
         return csv_content
     
 
