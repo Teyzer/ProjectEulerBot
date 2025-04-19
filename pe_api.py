@@ -223,7 +223,7 @@ class Problem:
         if latest is None:
             return True
         
-        return is_recent_unix(latest)        
+        return not is_recent_unix(latest)        
     
 
     @staticmethod
@@ -1643,6 +1643,61 @@ class Award:
     def __init__(self, **kwargs):
         pass
 
+
+
+class Challenge:
+    
+    
+    def __init__(self, from_member: Member, to_member: Member, unix_start: int, hours_duration: int, problem: Problem):
+        
+        self.from_member: Member = from_member
+        self.to_member: Member = to_member
+        self.unix_start: int = unix_start
+        self.hours_duration: int = hours_duration
+        self.problem: Problem = problem
+        
+        self.accepted: bool = False
+        self.unix_accept_time: Optional[int] = None
+        
+        
+        
+    @staticmethod
+    def all_challenges() -> List['Challenge']:
+        
+        data = pe_database.query_single("SELECT * FROM challenges;")
+        
+        output_data = []
+        for row in data:
+            
+            from_member = Member(_username=row["from_member"])
+            to_member = Member(_username=row["to_member"])
+            unix_start = row["unix_start"]
+            hours_duration = row["hours_duration"]
+            problem = Problem(row["problem"])
+            
+            challenge = Challenge(from_member, to_member, unix_start, hours_duration, problem)
+            challenge.accepted = row["accepted"] == 1
+            challenge.unix_accept_time = None if row["unix_accept_time"] == -1 else row["unix_accept_time"]
+            
+            output_data.append(challenge)
+            
+
+    def register_in_database(self) -> None:
+        
+        from_name = self.from_member.username()
+        to_name = self.to_member.username()
+        problem_id = self.problem.problem_id()
+        
+        accepted = 1 if self.accepted else 0
+        unix_accept_time = -1 if self.unix_accept_time is None else self.unix_accept_time
+        
+        query = f"INSERT INTO challenges (from_member, to_member, unix_start, hours_duration, problem, accepted, unix_accept_time) \
+            VALUES ('{from_name}', '{to_name}', {self.unix_start}, {self.hours_duration}, {problem_id}, {accepted}, {unix_accept_time});"
+        
+        pe_database.query_single(query)
+        
+        
+    # def accept()
 
 
 def update_process() -> Optional[List[Dict[str, Any]]]:
