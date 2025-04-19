@@ -13,7 +13,7 @@ import phone_api
 from rich.console import Console
 from rich import inspect
 
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Union
 
 
 TOTAL_REQUESTS = 0
@@ -40,6 +40,14 @@ def pe_api_setup(cookies, account) -> None:
     account_name = account["username"]
 
     console.log(f"[-] Added credential for account {account_name}")
+    
+
+def now_unix() -> int:
+    return int(time.time())
+    
+    
+def is_recent_unix(unix_timestamp: int):
+    return now_unix() - unix_timestamp < 60
 
 
 
@@ -107,31 +115,40 @@ class ProjectEulerRequest:
 
         
 
-class PE_Problem:
+class Problem:
     
-    def __init__(self, problem_id: int, name: str = None, unix_publication: int = None, solves: int = None, 
-                 solves_in_discord: int = None, difficulty_rating: int = None):
-        self.name = name
-        self.problem_id = problem_id
-        self.unix_publication = unix_publication
-        self.solves = solves
-        self.solves_in_discord = solves_in_discord
-        self.difficulty_rating = difficulty_rating
+    
+    _all_problems: List[Dict[str, Union[int, 'Problem']]] = []
+    
+    
+    def __init__(self, problem_id: int, **kwargs):
         
+        self._name: Optional[str] = None
+        self._problem_id: Optional[int] = problem_id
+        self._unix_publication: Optional[int] = None
+        self._solves: Optional[int] = None
+        self._solves_in_discord: Optional[int] = None
+        self._difficulty_rating: Optional[int] = None
+        
+        for k, val in kwargs.items():
+            self.__dict__[k] = val
+        
+            
     def __str__(self) -> str:
-        return str([self.problem_id, self.name, self.unix_publication, self.solves, self.solves_in_discord, self.difficulty_rating])
+        return str(self.__dict__)
+    
     
     def __repr__(self) -> str:
         return self.__str__()
 
+
     @staticmethod
-    def complete_list() -> list:
-
+    def fetch_problems() -> None:
+        
         """
-        Returns a list containing all problems. L[i - 1] is thus problem i. Each
-        element is a PE_Problem instance.
+        Updates the global array `PROBLEMS`, which contains every problem
         """
-
+        
         res_list = []
         
         api_data = ProjectEulerRequest("https://projecteuler.net/minimal=problems", False)
@@ -142,6 +159,9 @@ class PE_Problem:
         ux_data = ProjectEulerRequest("https://projecteuler.net/progress", True)
         soup = BeautifulSoup(ux_data.response, 'html.parser')
         div = soup.find_all("span", class_='tooltiptext_narrow')
+        
+        if len(div) == 0:
+            raise Exception("data could not be fetched from the website, could not update problem fields")
         
         for element in div:
             
@@ -165,11 +185,189 @@ class PE_Problem:
             else:
                 raise Exception("Properties did not have 3 or 4 fields, resulted in title not being defined")
             
-            pb = PE_Problem(problem_id, name=title, unix_publication=timestamps[problem_id - 1], solves=solvers, difficulty_rating=difficulty)
-            res_list.append(pb)
-                
-        return res_list
+            problem = Problem(problem_id, _problem_id=problem_id, _name=title, _unix_publication=timestamps[problem_id - 1], _solves=solvers, _difficulty_rating=difficulty)
+            res_list.append(problem)
         
+        current_time = now_unix()
+        Problem._all_problems = [{"problem": problem, "fetched_at": current_time} for problem in res_list]
+
+
+    @staticmethod
+    def last_update(problem_id: int) -> Optional[int]:
+        
+        if len(Problem._all_problems) < problem_id:
+            return None
+        
+        return Problem._all_problems[problem_id - 1]["fetched_at"]
+    
+    
+    @staticmethod 
+    def oldest_last_update() -> Optional[int]:
+        
+        if len(Problem._all_problems) == 0:
+            return None
+        
+        min_timestamp = now_unix()
+
+        for element in Problem._all_problems:
+            fetched_at = element["fetched_at"]
+            min_timestamp = min(min_timestamp, fetched_at)
+            
+        return min_timestamp
+        
+        
+    @staticmethod
+    def should_be_updated() -> bool:
+        
+        latest = Problem.oldest_last_update()
+        if latest is None:
+            return True
+        
+        return is_recent_unix(latest)        
+    
+
+    @staticmethod
+    def complete_list() -> List['Problem']:
+
+        """
+        Returns a list containing all problems. L[i - 1] is thus problem i. Each
+        element is a Problem instance.
+        """
+        
+        if Problem.should_be_updated():
+            Problem.fetch_problems()
+            
+        return [element["problem"] for element in Problem._all_problems]
+        
+    
+    def problem_id(self) -> int:
+        
+        """
+        Returns the problem_id of a problem
+        """
+        
+        if self._problem_id is None:
+            raise ValueError("The problem object needs a _problem_id parameter to know which problem it is")
+        
+        return self._problem_id
+    
+
+    def update_from_project_euler(self) -> None:
+        
+        """
+        Will update the problem, and gather the information you can about it on Project Euler. 
+        This function is called automatically when trying to get fields that have not yet been defined
+        """
+        
+        if self._problem_id is None:
+            raise ValueError("_problem_id field is None")
+        
+        latest = Problem.last_update(self._problem_id)
+        if latest is None or not is_recent_unix(latest):
+            Problem.fetch_problems()
+            
+        for field in ["_name", "_unix_publication", "_solves", "_difficulty_rating"]:    
+            self.__dict__[field] = Problem._all_problems[self._problem_id - 1]["problem"].__dict__[field]
+
+
+    def name(self) -> str:
+        
+        """
+        Return the name (title) of the problem
+        """
+        
+        if self._name is None and self._problem_id is None:
+            raise ValueError("_name and _problem_id fields are both undefined")
+        
+        if self._name is None:
+            self.update_from_project_euler()
+            
+        return self._name
+    
+    
+    def unix_publication(self) -> int:
+        
+        """
+        Returns the unix publication date of the problem 
+        """
+        
+        if self._unix_publication is None and self._problem_id is None:
+            raise ValueError("_unix_publication and _problem_id fields are both undefined")
+        
+        if self._unix_publication is None:
+            self.update_from_project_euler()
+            
+        return self._unix_publication
+    
+    
+    def solves(self) -> int:
+        
+        """
+        return the number of solves of a problem
+        """
+        
+        if self._solves is None and self._problem_id is None:
+            raise ValueError("_solves and _problem_id fields are both undefined")
+        
+        if self._solves is None:
+            self.update_from_project_euler()
+            
+        return self._solves
+    
+    
+    def difficulty_is_defined(self) -> bool:
+        
+        if self._difficulty_rating is not None:
+            return True
+        
+        self.update_from_project_euler()
+        return self._difficulty_rating is not None
+    
+    
+    def difficulty(self) -> Optional[int]:
+        
+        """
+        Returns the difficulty a problem
+        """
+        
+        if self._difficulty_rating and self._problem_id is None:
+            raise ValueError("_difficulty_rating and _problem_id are both undefined")
+        
+        if self._difficulty_rating is None:
+            self.update_from_project_euler()
+            
+        return self._difficulty_rating
+            
+            
+    def title(self) -> int:
+        """
+        Alias for self.name() 
+        """
+        return self.name()
+        
+        
+    def solvers_in_discord(self) -> List['Member']:
+        
+        members: List['Member'] = Member.members()
+        
+        valid_solvers = []
+        
+        member: 'Member'
+        for member in members:
+            
+            if member.has_solved(self.problem_id()):
+                valid_solvers.append(member)
+                
+        return valid_solvers
+    
+    
+    
+        
+
+        
+        
+            
+    
 
 class Member:
     
@@ -283,7 +481,11 @@ class Member:
         
         soup = BeautifulSoup(kudo_page.response, 'html.parser')
 
-        awards_container = soup.find(id="awards_section").find_all("div", recursive=False)
+        awards_section = soup.find(id="awards_section")
+        if awards_section is None:
+            raise Exception("awards section is None, this might be because the member is no longer in the friend list, or you're missing an account", self._username)
+        
+        awards_container = awards_section.find_all("div", recursive=False)
 
         div1 = awards_container[0]
         div2 = awards_container[1]
@@ -589,15 +791,22 @@ class Member:
         return self._language
     
     
-    def solve_csv(self) -> str:
-        """
-        Returns a CSV string of the solves of the member.
-        """
-
+    def solve_csv_untouched(self) -> str:
+        
         csv_url = f"https://projecteuler.net/history={self.username()}"
         req = ProjectEulerRequest(csv_url)
         
         csv_content = req.response
+        
+        return csv_content
+        
+    
+    
+    def solve_csv(self) -> str:
+        """
+        Returns a CSV string of the solves of the member. Formatted to account for the solves that are omitted.
+        """
+        csv_content = self.solve_csv_untouched()        
         
         lines = list(filter(lambda x: x.strip() != '', csv_content.split("\n")))
         problems_ids = set(map(lambda x: x.split(',')[2], lines))
@@ -1133,6 +1342,12 @@ class Member:
         
         new_awards = ([], [], [])
         
+        if len(project_euler_data) != 3:
+            raise Exception("project euler data is not long enough", project_euler_data, self._username)
+        
+        if len(database_data) != 3:
+            raise Exception("database data is not long enough", database_data, self._username)
+        
         for i in range(first_len):
             if project_euler_data[0][i] == True and database_data[0][i] == False:
                 new_awards[0].append(i)
@@ -1372,6 +1587,64 @@ class Member:
         
 
 
+class Solve:
+    
+    
+    def __init__(self, **kwargs):
+        
+        self._problem: Optional[Problem] = None
+        self._problem_id: Optional[int] = None
+        self._member: Optional[Member] = None
+        self._unixtime = Optional[int] = None
+        
+        for k, val in kwargs.items():
+            self.__dict__[k] = val
+            
+            
+    def problem(self) -> Problem:
+        
+        if self._problem is None and self._problem_id is None:
+            raise Exception("this solve object does not have a problem object or problem id attached")
+        
+        if self._problem is None:
+            self._problem = Problem(_problem_id=self._problem_id)
+            
+        return self._problem
+    
+    
+    def problem_id(self) -> int:
+        
+        if self._problem is None and self._problem_id is None:
+            raise Exception("this solve object does not have a problem object or problem id attached")
+        
+        return self.problem().problem_id()
+            
+        
+    def member(self) -> Member:
+        
+        if self._member is None:
+            raise ValueError("_member field has not been specified")
+        
+        return self._member
+    
+    
+    def unixtime(self) -> int:
+        
+        if self._unixtime is None:
+            raise ValueError("_unixtime field has not been specified")
+        
+        return self._unixtime
+
+
+
+class Award:
+    
+    
+    def __init__(self, **kwargs):
+        pass
+
+
+
 def update_process() -> Optional[List[Dict[str, Any]]]:
     
     members: List[Member] = Member.members()
@@ -1379,6 +1652,7 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
     
     new_changes = []
 
+    
     for member in members:
         
         if member.have_solves_changed():
@@ -1402,14 +1676,13 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
     return new_changes
 
 
+def push_solve_to_database(member: Member, solve: Problem):
 
-def push_solve_to_database(member: Member, solve: PE_Problem):
-
-    pb_def = problem_def(solve.problem_id)
+    pb_def = problem_def(solve.problem_id())
     position = pb_def[3]
 
     temp_query = "INSERT INTO solves (member, problem, solve_date, position) VALUES ('{0}', {1}, datetime('now'), {2})"
-    temp_query = temp_query.format(member.username(), solve.problem_id, position)
+    temp_query = temp_query.format(member.username(), solve.problem_id(), position)
     pe_database.query_single(temp_query)
 
 
@@ -1713,10 +1986,6 @@ def update_fastest_solves(starting_problem: int = 277):
 
 
 if __name__ == "__main__":
-
-    m = Member(_username = "Teyzer18")
-    print(m.has_solved(906))
-
-    print(last_problem_database())
+    pass
     
     

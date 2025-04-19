@@ -175,7 +175,7 @@ async def major_update() -> bool:
     if len(profiles) == 0:
         return True
     
-    problems: List[pe_api.PE_Problem] = pe_api.PE_Problem.complete_list()
+    problems: List[pe_api.Problem] = pe_api.Problem.complete_list()
     awards_specs = pe_api.get_awards_specs()
     
     for profile in profiles:
@@ -189,7 +189,7 @@ async def major_update() -> bool:
 
         for problem_id in solves:
             
-            problem: pe_api.PE_Problem = problems[problem_id - 1]
+            problem: pe_api.Problem = problems[problem_id - 1]
             pe_api.push_solve_to_database(member, problem)
 
             for channel_id in CHANNELS_TO_ANNOUNCE:
@@ -197,19 +197,19 @@ async def major_update() -> bool:
                 channel = bot.get_channel(channel_id)
                 
                 #decide what message to send depending on how many solvers there are
-                if int(problem.solves) <= 3:
-                    sending_message = AWARDING_SENTENCES[problem.solves - 1].format(member.username_ping(), problem.problem_id, problem.name)
+                if int(problem.solves()) <= 3:
+                    sending_message = AWARDING_SENTENCES[problem.solves() - 1].format(member.username_ping(), problem.problem_id(), problem.name())
                 else:
-                    sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id, problem.name, problem.solves)
+                    sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id(), problem.name(), problem.solves())
                     
                 # add related emojis
                 # optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
-                optional_bee = " ⚡" if problem.problem_id == len(problems) else ""
+                optional_bee = " ⚡" if problem.problem_id() == len(problems) else ""
                 optional_smooth_score = " " + pe_events.eventSmoothen.update_event_in_message(member, problem_id)
 
                 optional_emojis = optional_bee + optional_smooth_score
                 
-                sending_message = sending_message + optional_emojis + " " + PROBLEM_LINK.format(problem.problem_id)
+                sending_message = sending_message + optional_emojis + " " + PROBLEM_LINK.format(problem.problem_id())
                 await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
             
         if member.solve_count() % 25 == 0:
@@ -458,25 +458,28 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     if m.private() and m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
-    problem_specs = pe_api.PE_Problem.complete_list()
+    problem_specs = pe_api.Problem.complete_list()
     problem_list = [problem_specs[i - 1] for i in m.unsolved_problems()]
 
-    # pb: pe_api.PE_Problem = pe_api.PE_Problem.complete_list()[0]
+    def sort_method_key(problem: pe_api.Problem, method: str):
+        if method == "By number of solves":
+            return int(problem.solves())
+        if method == "By order of publication":
+            return int(problem.unix_publication())
+        if method == "By ratio of solves per time unit":
+            return int(problem.solves()) / (int(time.time()) + 31536000 - int(problem.unix_publication()))
+        
 
     problems = sorted(
         problem_list, 
-        key={
-            "By number of solves": lambda pb: int(pb.solves),
-            "By order of publication": lambda pb: int(pb.unix_publication),
-            "By ratio of solves per time unit": lambda pb: int(pb.solves) / (int(time.time()) + 31536000 - int(pb.unix_publication)), 
-        }[method], 
+        key=lambda problem: sort_method_key(problem, method), 
         reverse=True
     )
 
     problems = problems[:display_nb]
 
     lst = "```" + "\n".join(list(map(
-        lambda pb: f"Problem #{pb.problem_id}: '{pb.name}' solved by {pb.solves} members", 
+        lambda pb: f"Problem #{pb.problem_id()}: '{pb.name()}' solved by {pb.solves()} members", 
         problems
     ))) + "```"
 
@@ -525,10 +528,10 @@ async def on_message(message):
             continue
         
         try:
-            data = pe_api.PE_Problem.complete_list()
-            problem_object: pe_api.PE_Problem = data[problem_id - 1]
+            data = pe_api.Problem.complete_list()
+            problem_object: pe_api.Problem = data[problem_id - 1]
             problem_embed = discord.Embed(description=
-                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name}' ({problem_object.difficulty_rating}%/{problem_object.solves})"
+                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' ({problem_object.difficulty()}%/{problem_object.solves()})"
             )
         except Exception as _:
             problem_embed = discord.Embed(description=
@@ -780,11 +783,11 @@ async def command_randproblem(ctx, member: discord.User):
         return await ctx.respond(f"I *randomly* selected problem #1729 for user: `{m.username_option()}`: <https://teyzer.github.io/problem1729/>")
 
     problems = m.unsolved_problems()
-    all_problems = pe_api.PE_Problem.complete_list()
-    choice: pe_api.PE_Problem = all_problems[random.choice(problems) - 1]
+    all_problems = pe_api.Problem.complete_list()
+    choice: pe_api.Problem = all_problems[random.choice(problems) - 1]
 
     text_message = "I randomly selected problem #{0} for user `{1}`: \"{2}\". <https://projecteuler.net/problem={0}>"
-    text_message = text_message.format(choice.problem_id, m.username_option(), choice.name)
+    text_message = text_message.format(choice.problem_id(), m.username_option(), choice.name())
 
     return await ctx.respond(text_message)
     
@@ -1072,7 +1075,7 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
         return await ctx.respond(help_text)
 
 
-    current_list = pe_api.PE_Problem.complete_list()
+    current_list = pe_api.Problem.complete_list()
 
     discord_id = ctx.author.id
     if member is not None:
@@ -1085,13 +1088,13 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
     arguments = options.upper().split("|")
     arguments = list(map(lambda x: x.replace(" ", ""), arguments)) + [f"LIMIT{limit_for_problems}"]
 
-    def weak_eval(exp: str, problem: pe_api.PE_Problem):
+    def weak_eval(exp: str, problem: pe_api.Problem):
         if exp == "%DIFFICULTY":
-            return problem.difficulty_rating
+            return problem.difficulty()
         if exp == "%ID":
-            return problem.problem_id
+            return problem.problem_id()
         if exp == "%SOLVES":
-            return problem.solves
+            return problem.solves()
         return None
 
     # To account for the LIMIT{PB_LIMIT} that adds one command correctly executed each time
@@ -1102,7 +1105,7 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
         for command in arguments:
 
             if "%DIFFICULTY" in command:
-                current_list = list(filter(lambda x: x.difficulty_rating is not None, current_list))
+                current_list = list(filter(lambda x: x.difficulty() is not None, current_list))
             
             if (">" in command) or ("<" in command) or ("=" in command):
 
@@ -1132,13 +1135,13 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
                 desc = "DESC" in command
 
                 if "%DIFFICULTY" in command:
-                    current_list = sorted(current_list, key=lambda pb: pb.difficulty_rating, reverse=desc)
+                    current_list = sorted(current_list, key=lambda pb: pb.difficulty(), reverse=desc)
                     commands_correctly_treated += 1
                 if "%ID" in command:
-                    current_list = sorted(current_list, key=lambda pb: pb.problem_id, reverse=desc)
+                    current_list = sorted(current_list, key=lambda pb: pb.problem_id(), reverse=desc)
                     commands_correctly_treated += 1
                 if "%SOLVES" in command:
-                    current_list = sorted(current_list, key=lambda pb: pb.solves, reverse=desc)
+                    current_list = sorted(current_list, key=lambda pb: pb.solves(), reverse=desc)
                     commands_correctly_treated += 1
 
             if "LIMIT" in command:
@@ -1148,13 +1151,14 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
             
             if "SOLVED" in command:
                 own_solves = set(m.solved_problems())
-                current_list = [pb for pb in current_list if ((pb.problem_id in own_solves) ^ ("NOT" in command))]
+                current_list = [pb for pb in current_list if ((pb.problem_id() in own_solves) ^ ("NOT" in command))]
                 commands_correctly_treated += 1
 
     except Exception as e:
         return await ctx.respond("An error occured. Specify `help` in the options to get informations on this command.")
 
-    formatter = lambda pb: f"{pb.problem_id}: {pb.name} (%{pb.difficulty_rating}/{pb.solves})" 
+    def formatter(problem: pe_api.Problem):
+        return f"{problem.problem_id()}: {problem.name()} (%{problem.difficulty()}/{problem.solves()})" 
 
     text_list = "```" + "\n".join(list(map(formatter, current_list))) + "```"
     return await ctx.respond(f"Correctly executed {commands_correctly_treated} commands: {text_list}")
@@ -1264,7 +1268,7 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     if problem_id < 0:
         return await ctx.respond("Problem ID is out of range, I cannot evaluate the difficulty of bonus problems.")
 
-    if problem_id == 0 or problem_id > len(pe_api.PE_Problem.complete_list()):
+    if problem_id == 0 or problem_id > len(pe_api.Problem.complete_list()):
         return await ctx.respond("Problem ID is out of range.")
 
     data_filename = "saved_data/fastest_solves.json"
@@ -1303,10 +1307,10 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
         return total
 
     nearests = sorted(new_dictionary.keys(), key=lambda k: own_distance(problem_data, new_dictionary[k]), reverse=False)
-    all_problems = pe_api.PE_Problem.complete_list()
+    all_problems = pe_api.Problem.complete_list()
 
     to_keep = list(map(int, nearests[:neighbors]))
-    to_keep_difficulties = list(map(lambda pb_id: all_problems[pb_id - 1].difficulty_rating, to_keep))
+    to_keep_difficulties = list(map(lambda pb_id: all_problems[pb_id - 1].difficulty(), to_keep))
     difficulties = [5*i for i in range(1, 20 + 1)]
     
     nearest_difficulty = 0
@@ -1326,6 +1330,10 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     answer_text += "```"
 
     return await ctx.respond(answer_text)
+
+
+# @bot.slash_command(name="recent-solves")
+
 
 
 """

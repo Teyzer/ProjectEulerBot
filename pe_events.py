@@ -46,10 +46,10 @@ class eventSoPE:
             
     def scores(self):
         
-        problems = pe_api.PE_Problem.complete_list()
+        problems = pe_api.Problem.complete_list()
         score_list = {}
         
-        problem: pe_api.PE_Problem
+        problem: pe_api.Problem
         for problem in problems:
             
             problem_id = problem.problem_id
@@ -59,7 +59,7 @@ class eventSoPE:
             solver_name, timestamp = self.get_solver(problem_id)
             time_to_solve = timestamp - self.starting_timestamp()
             
-            difficulty = problem.difficulty_rating if problem.difficulty_rating is not None else 70
+            difficulty = problem.difficulty() if problem.difficulty_is_defined() else 70
             
             difficulty_score = max(5, (difficulty // 15) * 5)
             day_score = time_to_solve // 86400
@@ -111,7 +111,7 @@ class eventMonthly1:
         choice = -1
         already_used = self.past_problems()
 
-        problems = pe_api.PE_Problem.complete_list()
+        problems = pe_api.Problem.complete_list()
         
         while True:
 
@@ -120,17 +120,17 @@ class eventMonthly1:
             if choice == -1 or choice in already_used:
                 continue
 
-            current_problem: pe_api.PE_Problem = problems[choice - 1]
-            if current_problem.difficulty_rating == None:
+            current_problem: pe_api.Problem = problems[choice - 1]
+            if not current_problem.difficulty_is_defined():
                 continue
 
-            if diff_range == 0 and not (current_problem.difficulty_rating <= 40):
+            if diff_range == 0 and not (current_problem.difficulty() <= 40):
                 continue
 
-            if diff_range == 1 and not (45 <= current_problem.difficulty_rating <= 75):
+            if diff_range == 1 and not (45 <= current_problem.difficulty() <= 75):
                 continue
 
-            if diff_range == 2 and not (current_problem.difficulty_rating >= 80):
+            if diff_range == 2 and not (current_problem.difficulty() >= 80):
                 continue
 
             break
@@ -138,7 +138,7 @@ class eventMonthly1:
         difficulty_text = ["easy", "medium", "hard"][diff_range]
         difficulty_category_text = f" with difficulty `{difficulty_text}`"
         announce_message_text = f"Switching to a new problem for the current event {difficulty_category_text}\
-: be the first to solve [**{choice}**](<https://projecteuler.net/problem={choice}>): '{current_problem.name}'!"
+: be the first to solve [**{choice}**](<https://projecteuler.net/problem={choice}>): '{current_problem.name()}'!"
 
         self.data["solves"][str(choice)] = {
             "solver_username": "None",
@@ -157,7 +157,7 @@ class eventMonthly1:
         self.data["solves"][str(current)]["timestamp_solved"] = str(int(time.time()))
         self.data["solves"][str(current)]["solver_username"] = member.username()
 
-        problem = pe_api.PE_Problem.complete_list()[current - 1]
+        problem = pe_api.Problem.complete_list()[current - 1]
 
         push_event_data(self.event_name, self.data)
         previous_message = self.switch_to_new_problem(diff_range)
@@ -169,7 +169,7 @@ class eventMonthly1:
     def scores(self):
 
         members = {}
-        problems = pe_api.PE_Problem.complete_list()
+        problems = pe_api.Problem.complete_list()
 
         solves = self.data["solves"]
 
@@ -181,9 +181,9 @@ class eventMonthly1:
 
             credited_points = 20 + (int(solves[key]["timestamp_solved"]) - int(solves[key]["timestamp_solved"])) // 3600
             
-            if problems[int(key) - 1].difficulty_rating >= 80:
+            if problems[int(key) - 1].difficulty() >= 80:
                 credited_points *= 3
-            elif problems[int(key) - 1].difficulty_rating >= 45:
+            elif problems[int(key) - 1].difficulty() >= 45:
                 credited_points *= 2
 
             if username in members:
