@@ -1658,13 +1658,14 @@ class Challenge:
         
         self.accepted: bool = False
         self.unix_accept_time: Optional[int] = None
+        self.challenge_id: Optional[int] = None
         
         
         
     @staticmethod
-    def all_challenges() -> List['Challenge']:
+    def all_challenges(search_query: Optional[str]) -> List['Challenge']:
         
-        data = pe_database.query_single("SELECT * FROM challenges;")
+        data = pe_database.query_single("SELECT * FROM challenges;" if search_query is None else search_query)
         
         output_data = []
         for row in data:
@@ -1676,10 +1677,13 @@ class Challenge:
             problem = Problem(row["problem"])
             
             challenge = Challenge(from_member, to_member, unix_start, hours_duration, problem)
+            challenge.challenge_id = row["id"]
             challenge.accepted = row["accepted"] == 1
             challenge.unix_accept_time = None if row["unix_accept_time"] == -1 else row["unix_accept_time"]
             
             output_data.append(challenge)
+            
+        return output_data
             
 
     def register_in_database(self) -> None:
@@ -1696,8 +1700,51 @@ class Challenge:
         
         pe_database.query_single(query)
         
+        query_retrieve_row = f"SELECT id FROM challenges WHERE accepted={accepted} AND unix_start={self.unix_start} AND \
+            from_member='{from_name}' AND to_member='{to_name}' ORDER BY id DESC;"
+        rows_in_database = pe_database.query_single(query_retrieve_row)
         
-    # def accept()
+        self.challenge_id = rows_in_database[0]["id"]
+        
+    
+    def accept(self):
+        
+        """
+        Will mark the challenge as accepted.
+        """
+    
+        current_time = now_unix()
+        query = f"UPDATE challenges SET accepted=1, unix_accept_time={current_time} WHERE id={self.challenge_id};"
+        pe_database.query_single(query)
+        
+        self.unix_accept_time = current_time
+        self.accepted = True    
+        
+    
+    @staticmethod
+    def get_by_id(challenge_id: int) -> Optional['Challenge']:
+        
+        all_challenges = Challenge.all_challenges(f"SELECT * FROM challenges WHERE id={challenge_id};")
+        if len(all_challenges) == 0:
+            return None
+        
+        challenge = all_challenges[0]
+        return challenge
+        
+    
+    @staticmethod
+    def accept_by_id(challenge_id: int):
+        
+        challenge = Challenge.get_by_id(challenge_id)
+        if challenge is None:
+            raise Exception("Could not find the challenge")
+        
+        challenge.accept()
+        
+        
+        
+        
+        
 
 
 def update_process() -> Optional[List[Dict[str, Any]]]:

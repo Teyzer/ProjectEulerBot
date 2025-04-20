@@ -762,7 +762,7 @@ async def command_list_threads(ctx):
 
 
 @bot.slash_command(name="randproblem", description="Give a random problem the user has not solved")
-@option("member", description="The targetted member", default=None)
+@option("member", description="The targeted member", default=None)
 async def command_randproblem(ctx, member: discord.User):
 
     await ctx.defer()
@@ -840,7 +840,7 @@ async def command_events_data(ctx, event: str):
 
 
 @bot.slash_command(name="grid", description="Get the solve grid of an user")
-@option("member", description="The targetted user", default = None)
+@option("member", description="The targeted user", default = None)
 async def commmand_grid(ctx, member: discord.User):
 
     await ctx.defer()
@@ -866,7 +866,7 @@ async def commmand_grid(ctx, member: discord.User):
     
     
 @bot.slash_command(name="grid-animation", description="Get the solve grid of an user")
-@option("member", description="The targetted user", default = None)
+@option("member", description="The targeted user", default = None)
 async def commmand_grid_animation(ctx, member: discord.User):
     
     await ctx.defer()
@@ -1332,7 +1332,53 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     return await ctx.respond(answer_text)
 
 
-# @bot.slash_command(name="recent-solves")
+@bot.slash_command(name="challenge")
+@option("Member", description="Which member")
+@option("Problem ID", description="Which problem")
+@option("Duration in hours", description="Which problem")
+async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
+    
+    await ctx.defer()
+    
+    discord_id = user.id
+    to_member: pe_api.Member = pe_api.Member(_discord_id=discord_id)
+    
+    if not to_member.is_discord_linked():
+        return await ctx.respond("This user does not have a Project Euler account linked.")
+    
+    from_member = pe_api.Member(_discord_id=ctx.author.id)
+    if not from_member.is_discord_linked():
+        return await ctx.respond("You need to link your Project Euler account first.")
+    
+    challenge: pe_api.Challenge = pe_api.Challenge(from_member, to_member, pe_api.now_unix(), hours, pe_api.Problem(problem))
+    challenge.register_in_database()
+    
+    own_id = challenge.challenge_id
+    
+    response = f"The challenge has been registered, with ID {own_id}, the challenged member may accept it with /challenge-accept."
+    response += f" They will get {hours} hours to solve the problem from the momment they accept it."
+    
+    return await ctx.respond(response)
+    
+    
+@bot.slash_command(name="challenge-accept")
+@option("Challenge ID", description="Which challenge you want to accept")
+async def command_challenge_accept(ctx, challenge_id: int):
+    
+    await ctx.defer()
+    
+    challenge = pe_api.Challenge.get_by_id(challenge_id)    
+    if challenge is None:
+        return await ctx.respond("I could not find a challenge with that ID.")
+    
+    if not challenge.to_member.is_discord_linked():
+        return await ctx.respond("I could not verify you are the person the challenge has been sent to, please verify your account is linked.")
+    
+    if challenge.to_member.discord_id() != str(ctx.author.id):
+       return await ctx.respond("You're not the person challenged for that ID.") 
+    
+    challenge.accept()
+    return await ctx.respond(f"You have accepted the challenge. You have {challenge.hours_duration} hours to complete it!")
 
 
 
