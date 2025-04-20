@@ -35,10 +35,6 @@ if __name__ == '__main__':
     discord_key = setup()
     temp_console.rule()
     
-    p = pe_api.Problem(15)
-    print(p.solves())
-    print(p)
-    
     pe_discord_api.bot.run(discord_key)
     
 
