@@ -1277,64 +1277,38 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     if problem_id == 0 or problem_id > len(pe_api.Problem.complete_list()):
         return await ctx.respond("Problem ID is out of range.")
 
-    data_filename = "saved_data/fastest_solves.json"
-    with open(data_filename, "r") as f:
-        data = json.load(f)
+    problem_obj = pe_api.Problem(problem_id)
+    difficulty, nearests = problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
 
-    prob_key = str(problem_id)
-
-    problem_data = pe_api.get_fastest_solvers(problem_id)
-    solve_count = len(problem_data.keys())
-    
-    new_dictionary = {}
-
-    for prob_id in data.keys():
-
-        if prob_id == prob_key:
-            continue
-
-        if len(data[prob_id].keys()) < 100:
-            continue
-
-        new_dictionary[prob_id] = {}
-        for position in data[prob_id].keys():
-            
-            if int(position) <= solve_count:
-                new_dictionary[prob_id][position] = data[prob_id][position]
-
-    def own_distance(arr1, arr2):
-
-        total = 0
-
-        for k in arr1.keys():
-            ratio = arr1[k]["solve_time"] / arr2[k]["solve_time"] + arr2[k]["solve_time"] / arr1[k]["solve_time"]
-            total += ratio
-        
-        return total
-
-    nearests = sorted(new_dictionary.keys(), key=lambda k: own_distance(problem_data, new_dictionary[k]), reverse=False)
-    all_problems = pe_api.Problem.complete_list()
-
-    to_keep = list(map(int, nearests[:neighbors]))
-    to_keep_difficulties = list(map(lambda pb_id: all_problems[pb_id - 1].difficulty(), to_keep))
-    difficulties = [5*i for i in range(1, 20 + 1)]
-    
-    nearest_difficulty = 0
-    found_at_most = 0
-
-    for diff in difficulties:
-        found = to_keep_difficulties.count(diff)
-        if found > found_at_most:
-            found_at_most = found
-            nearest_difficulty = diff
-
-    answer_text = f"I expect problem #{problem_id} to have difficulty {nearest_difficulty}% based on its {neighbors} nearest neighbors:"
+    answer_text = f"I expect problem #{problem_id} to have difficulty {difficulty}% based on its {neighbors} nearest neighbors:"
     
     answer_text += "```"
-    for prob_id, diff in zip(to_keep, to_keep_difficulties):
-        answer_text += f"{prob_id}: {diff}%\n"
+    for problem in nearests:
+        answer_text += f"{problem.problem_id()}: {problem.difficulty()}% ({problem.name()})\n"
     answer_text += "```"
 
+    return await ctx.respond(answer_text)
+
+
+@bot.slash_command(name="guess-difficulty-all")
+@option("Neighbors", description="Number of neighbors to use to run the KNN-algorithm", min=1, default=None)
+async def command_guess_difficulty_all(ctx, neighbors: int = 5):
+
+    await ctx.defer()
+
+    try:
+        last_problem = pe_api.last_problem()
+    except Exception as _:
+        last_problem = pe_api.last_problem_database()
+    
+    answer_text = f"Here is the difficulty I expect for the last 10 problems:"
+    answer_text += "```"
+
+    for problem_id in range(last_problem - 9, last_problem + 1):
+        problem_obj = pe_api.Problem(problem_id)
+        answer_text += f"{problem_obj.problem_id()}: {problem_obj.guess_difficulty()}% ({problem_obj.name()})\n"
+
+    answer_text += "```"
     return await ctx.respond(answer_text)
 
 

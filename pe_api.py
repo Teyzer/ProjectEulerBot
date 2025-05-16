@@ -338,6 +338,67 @@ class Problem:
             
         return self._difficulty_rating
             
+
+    def guess_difficulty_detailed(self, neighbors_count: int = 5) -> Tuple[int, List['Problem']]:
+        
+        """
+        returns the difficulty guessed by the bot with a k-neighbor algorithm, along 
+        with its k nearest neighbors
+        """
+        
+        data_filename = "saved_data/fastest_solves.json"
+        with open(data_filename, "r") as f:
+            data = json.load(f)
+
+        prob_key = str(self.problem_id())
+
+        # TODO: make this a function incorporated inside the Problem object
+        problem_data = get_fastest_solvers(self.problem_id())
+        solve_count = len(problem_data.keys())
+        
+        new_dictionary = {}
+
+        for prob_id in data.keys():
+
+            if prob_id == prob_key:
+                continue
+
+            if len(data[prob_id].keys()) < 100:
+                continue
+
+            new_dictionary[prob_id] = {}
+            for position in data[prob_id].keys():
+                
+                if int(position) <= solve_count:
+                    new_dictionary[prob_id][position] = data[prob_id][position]
+
+        def own_distance(arr1, arr2):
+
+            total = 0
+
+            for k in arr1.keys():
+                ratio = arr1[k]["solve_time"] / arr2[k]["solve_time"] + arr2[k]["solve_time"] / arr1[k]["solve_time"]
+                total += ratio
+            
+            return total
+
+        nearests = sorted(new_dictionary.keys(), key=lambda k: own_distance(problem_data, new_dictionary[k]), reverse=False)
+        all_problems = Problem.complete_list()
+
+        to_keep: List[Problem] = list(map(lambda key: all_problems[int(key) - 1], nearests[:neighbors_count]))
+        to_keep_difficulties: List[int] = list(map(lambda problem: problem.difficulty(), to_keep))
+
+        difficulty = sorted(to_keep_difficulties)[neighbors_count // 2]
+        
+        return difficulty, to_keep
+
+
+    def guess_difficulty(self) -> int:
+        """
+        returns the difficulty guessed by the bot with a k-neighbor algorithm
+        """
+        return self.guess_difficulty_detailed()[0]
+        
             
     def title(self) -> int:
         """
