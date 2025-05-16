@@ -9,7 +9,6 @@ import json
 
 from requests import TooManyRedirects
 
-# import dbqueries
 import pe_database
 import pe_api
 import pe_image
@@ -693,10 +692,17 @@ async def command_thread(ctx, problem: int):
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
+    try:
+        problem_object = pe_api.Problem(problem)
+        optional_problem_name = f"'{problem_object.name()}'"
+    except Exception as _:
+        optional_problem_name = "Failed to retrieve problem name"
+
     # If a thread already exists (check only with the name), then simply create a new link to it 
     if thread_name in list(map(lambda element: element.name, available_threads)):
         button_view = inters.problem_thread_view(problem_number=problem)
-        return await ctx.respond("A thread has already been opened for this problem. You can join it here:", view=button_view)
+        response_text = f"A thread has already been opened for problem #{problem} ({optional_problem_name}). You can join it here:"
+        return await ctx.respond(response_text, view=button_view)
     
     # Otherwise, find the appropriate channel
     adapted_channel = ctx.channel
@@ -712,13 +718,13 @@ async def command_thread(ctx, problem: int):
     await thread_object.edit(invitable=False)
 
     # Send the first message of the thread
-    await thread_object.send("Start of the discussion for problem #{0}, only opened to the solvers :)".format(problem))
+    await thread_object.send(f"Start of the discussion for problem #{problem}, only opened to the solvers :)")
     
     # Retrieve the button object with the correct problem numbers
     button_view = inters.problem_thread_view(problem_number=problem)
 
     # Send the button
-    await ctx.respond("Click the button below to join the appropriate thread!", view=button_view)
+    await ctx.respond(f"Click the button below to join the appropriate thread! (Problem #{problem}: {optional_problem_name})", view=button_view)
     
 
 @bot.slash_command(name="list-threads", description="Show a list of available threads")
