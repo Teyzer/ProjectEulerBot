@@ -160,6 +160,7 @@ def refresh_tokens():
     with open(PROFILE_NAME, "w") as f:
         json.dump(data, f, indent=4)
 
+    pe_api.COOKIES = values
     return values
 
 
