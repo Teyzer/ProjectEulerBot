@@ -119,6 +119,11 @@ async def major_update() -> bool:
     website_active = pe_session.is_website_active()
     session_alive = pe_session.is_connected()
 
+    if not website_active or not session_alive:
+        pe_session.refresh_tokens()
+        website_active = pe_session.is_website_active()
+        session_alive = pe_session.is_connected()
+
     if not website_active:
         console.log("Skipped major_update because website does not respond.")
         await async_set_bot_status(3, "Website died")
@@ -952,8 +957,9 @@ async def command_force_new_session(ctx):
         return await ctx.respond("You need to be a moderator or more to use this, sorry!", ephemeral=True)
     
     values = pe_session.refresh_tokens()
-
     success = not(any([values[k] is None for k in values.keys()]))
+
+    pe_api.COOKIES = values
 
     return await ctx.respond(f"Done. Returned keys are non-empty: {success}")
 

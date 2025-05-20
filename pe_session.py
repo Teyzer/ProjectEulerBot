@@ -15,6 +15,12 @@ import json
 import pe_api
 import phone_api
 
+from rich.console import Console
+
+import os
+
+
+console = Console()
 
 MAX_TRIES = 3
 CAPTCHA_KEY = None
@@ -63,6 +69,9 @@ def try_fetching_cookies(human: bool = False):
 
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
+
+    if 'web_utils' not in os.listdir('.'):
+        os.mkdir('web_utils')
 
     # GET THE CAPTCHA
 
@@ -125,7 +134,7 @@ def refresh_tokens():
         cookies = try_fetching_cookies(human)
         current_tries += 1
 
-        print(current_tries)
+        console.log(f"[-] Making try #{current_tries} to refresh cookies")
 
         for cookie in cookies:
 
@@ -138,15 +147,17 @@ def refresh_tokens():
     
     if values["keep_alive"] is not None:
         phone_api.bot_info("Token refreshed automatically")
+        console.log("[+] Token refreshed automatically")
     else:
         phone_api.bot_crashed("Failed to refresh token")
+        console.log("[*] Failed to refresh token")
 
-    with open(profile_name, "r") as f:
+    with open(PROFILE_NAME, "r") as f:
         data = json.load(f)
 
     data["session_keys"] = values
 
-    with open(profile_name, "w") as f:
+    with open(PROFILE_NAME, "w") as f:
         json.dump(data, f, indent=4)
 
     return values

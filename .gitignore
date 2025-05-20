@@ -145,3 +145,4 @@ images_saves/
 # idea
 .idea
 scripts/
+web_utils/*.png
