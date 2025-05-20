@@ -1,6 +1,7 @@
 import pe_api
 import pe_discord_api
 import pe_database
+import pe_session
 
 from rich.console import Console
 
@@ -17,12 +18,14 @@ def setup() -> str:
     if len(sys.argv) < 2:
         raise Exception("Missing a profile filename.")
     
-    with open(f"profiles/{sys.argv[1]}", "r") as f:
+    profile_name = f"profiles/{sys.argv[1]}"
+    with open(profile_name, "r") as f:
         profile = json.load(f)
 
     pe_discord_api.pe_discord_api_setup(profile["announcement_channels"])
     pe_api.pe_api_setup(profile["session_keys"], profile["pe_account"])
     pe_database.database_setup(profile["database_file"])
+    pe_session.session_setup(profile["captcha_key"], profile_name)
     
     return profile["discord_key"]
     

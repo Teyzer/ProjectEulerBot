@@ -17,6 +17,16 @@ import phone_api
 
 
 MAX_TRIES = 3
+CAPTCHA_KEY = None
+PROFILE_NAME = None
+
+
+def session_setup(captcha: str, profile: str) -> None:
+
+    global CAPTCHA_KEY, PROFILE_NAME
+    CAPTCHA_KEY = captcha
+    PROFILE_NAME = profile
+
 
 
 def get_captcha(driver, element, path):
@@ -41,7 +51,7 @@ def solve(image_name: str, human: bool = False):
         return input("Human CAPTCHA: ")
     
     solver = imagecaptcha()
-    solver.set_key("AAAA")
+    solver.set_key(CAPTCHA_KEY)
     captcha_text = solver.solve_and_return_solution(image_name)
 
     phone_api.bot_info("Consumed a CAPTCHA token")
@@ -131,12 +141,12 @@ def refresh_tokens():
     else:
         phone_api.bot_crashed("Failed to refresh token")
 
-    with open("keys.json", "r") as f:
+    with open(profile_name, "r") as f:
         data = json.load(f)
 
     data["session_keys"] = values
 
-    with open("keys.json", "w") as f:
+    with open(profile_name, "w") as f:
         json.dump(data, f, indent=4)
 
     return values
@@ -166,5 +176,10 @@ def is_website_active() -> bool:
 
 if __name__ == "__main__":
 
+    profile_name = "profiles/authentic.json"
+    with open(profile_name, "r") as f:
+        data = json.load(f)
+        session_setup(data["captcha_key"], profile_name)
+        
     print(is_connected())
-    refresh_tokens()
+    print(refresh_tokens())
