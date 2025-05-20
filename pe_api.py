@@ -101,14 +101,18 @@ class ProjectEulerRequest:
             else:
                 ProjectEulerRequest.request_succeeded()
                 self.response: str | Exception | None = r.text
+            
+            self.err = None
 
         except Exception as err:
+
+            # Previously, err was raised again at the end of this, but returning no data seems better
             phone_api.bot_crashed(str(err))
             ProjectEulerRequest.request_failed()
             self.status = None
-            raise err
-            # self.response: str | Exception | None = err
-        
+            self.response: str | Exception | None = None
+            self.err = err
+            
 
 
 
