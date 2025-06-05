@@ -471,7 +471,14 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
         if method == "By order of publication":
             return int(problem.unix_publication())
         if method == "By ratio of solves per time unit":
-            return int(problem.solves()) / (int(time.time()) + 31536000 - int(problem.unix_publication()))
+            time_window = 10
+            problem_id = problem.problem_id()
+            last = len(problem_specs)
+            if problem_id <= last - time_window:
+                score = problem.solves() / sum([problem_specs[i - 1].solves() for i in range(problem_id, problem_id + time_window)])
+            else:
+                score = problem.solves() / sum([problem_specs[i - 1].solves() for i in range(problem_id - time_window, problem_id)])
+            return score * problem.solves()
         
 
     problems = sorted(
