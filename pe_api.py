@@ -178,8 +178,12 @@ class Problem:
                 continue
             
             problem_id = int(properties[0].split()[1])
-            solvers = int(properties[1].split()[2])
-            
+            try: # TODO: Make a better version of this, this is pure quick fix here
+                solvers = int(properties[1].split()[2])
+            except Exception as _:
+                solvers = 0
+
+
             if len(properties) == 3:    
                 difficulty = None
                 title = properties[2].replace("\"", "")
