@@ -458,6 +458,9 @@ class Solve:
     
     
     def problem_id(self) -> int:
+
+        if self._problem_id is not None:
+            return self._problem_id
         
         if self._problem is None and self._problem_id is None:
             raise Exception("this solve object does not have a problem object or problem id attached")
@@ -1384,7 +1387,7 @@ class Member:
         return not (self.pe_kudo_count() == self.database_kudo_count())
     
 
-    def get_new_solves(self) -> List[int]:
+    def get_new_solves(self) -> List[Solve]:
 
         """
         Returns a list of the problems that have just been solved by a member.
@@ -1406,7 +1409,15 @@ class Member:
                 continue
             
             if project_euler_data[i] == True and (i >= len(database_data) or database_data[i] == False):
-                new_solves.append(i + 1)
+                new_solves.append(
+                    Solve(
+                        _problem=Problem(i+1),
+                        _problem_id=i+1,
+                        _member=self,
+                        _unixtime=now_unix(),
+                        _unix_is_accurate=False
+                    )
+                )
             
         return new_solves
     
@@ -1694,7 +1705,7 @@ class Member:
         Takes a member and removes one its solves. Particularly useful for testing and debugging.
         """
 
-        cur_solves = "".join(["01"[b] for b in self.pe_solve_array()])
+        cur_solves = "".join(["01"[b] for b in self.database_solve_array()])
         cur_solves = cur_solves[:(problem - 1)] + "0" + cur_solves[(problem - 1) + 1:]
 
         temp_query = f"UPDATE members SET solve_list = '{cur_solves}', solved = {self.solve_count() - 1} \
@@ -1820,7 +1831,7 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
         if member.have_solves_changed():
             
             new_solves = member.get_new_solves()
-            console.log(f"New solve(s) for {member.username()}: {new_solves}")
+            console.log(f"New solve(s) for {member.username()}: {[s.problem_id() for s in new_solves]}")
             member.push_basics_to_database()
 
             new_awards = None
@@ -1835,6 +1846,7 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
             skipped_member_count += 1
             
     console.log(f"Skipped {skipped_member_count} members")
+    console.log(new_changes)
     return new_changes
 
 

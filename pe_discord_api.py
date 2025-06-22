@@ -185,16 +185,16 @@ async def major_update() -> bool:
     for profile in profiles:
         
         member: pe_api.Member = profile["member"]
-        solves = profile["solves"]
+        solves: List[pe_api.Solve] = profile["solves"]
         awards = profile["awards"]
         
         if member.private():
             continue
 
-        for problem_id in solves:
+        for solve in solves:
             
-            problem: pe_api.Problem = problems[problem_id - 1]
-            pe_api.push_solve_to_database(member, problem)
+            problem: pe_api.Problem = solve.problem()
+            pe_api.push_solve_to_database(member, solve.problem())
 
             for channel_id in CHANNELS_TO_ANNOUNCE:
                 
