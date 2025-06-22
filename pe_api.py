@@ -430,13 +430,65 @@ class Problem:
         return valid_solvers
     
     
-    
-        
 
-        
-        
-            
+class Solve:
     
+    
+    def __init__(self, **kwargs):
+        
+        self._problem: Optional[Problem] = None
+        self._problem_id: Optional[int] = None
+        self._member: Optional[Member] = None
+        self._unixtime: Optional[int] = None
+        self._unix_is_accurate: bool = False
+        
+        for k, val in kwargs.items():
+            self.__dict__[k] = val
+            
+            
+    def problem(self) -> Problem:
+        
+        if self._problem is None and self._problem_id is None:
+            raise Exception("this solve object does not have a problem object or problem id attached")
+        
+        if self._problem is None:
+            self._problem = Problem(self._problem_id)
+            
+        return self._problem
+    
+    
+    def problem_id(self) -> int:
+        
+        if self._problem is None and self._problem_id is None:
+            raise Exception("this solve object does not have a problem object or problem id attached")
+        
+        return self.problem().problem_id()
+            
+        
+    def member(self) -> 'Member':
+        
+        if self._member is None:
+            raise ValueError("_member field has not been specified")
+        
+        return self._member
+    
+    
+    def unixtime(self) -> int:
+        
+        if self._unixtime is None:
+            raise ValueError("_unixtime field has not been specified")
+        
+        return self._unixtime
+
+
+
+class Award:
+    
+    
+    def __init__(self, **kwargs):
+        pass
+
+
 
 class Member:
     
@@ -718,7 +770,6 @@ class Member:
         
     
     def identity(self) -> Tuple[str, str]:
-
         """
         Returns a list of two elements, a key, and a value.
         It allows to check for the identity of the member with member[key] == value. (For a database's row)
@@ -726,7 +777,6 @@ class Member:
         Note that this is needed because a member can have an identity coming from discord
         or from the project euler website, depending on where we have initiated the object.
         """
-
         if self._username is not None:
             return "username", self.username()
         elif self._discord_id is not None:
@@ -745,11 +795,9 @@ class Member:
     
 
     def push_privacy_to_database(self, new_privacy: bool, connection = None) -> None:
-
         """
         Updates a member's privacy in the database. `new_privacy` set as `true` indicates the member will be private.
         """
-
         new_value = "1" if (new_privacy == True) else "0"
         dis_id = self.discord_id()
         temp_query = f"UPDATE members SET private = {new_value} WHERE discord_id = '{dis_id}';"
@@ -1523,7 +1571,7 @@ class Member:
         
 
     @staticmethod
-    def members_friends() -> list:
+    def members_friends() -> List['Member']:
 
         """
         Returns a list of all the members in the friend list of the bot on project euler
@@ -1552,7 +1600,7 @@ class Member:
     
 
     @staticmethod
-    def members_database() -> list:
+    def members_database() -> List['Member']:
 
         """
         Returns a list of all the members in the friend list of the bot in the database
@@ -1581,7 +1629,7 @@ class Member:
     
 
     @staticmethod
-    def members() -> list:
+    def members() -> List['Member']:
         
         """ 
         Returns a list of all the members that the bot has ever heard of. A list of `pe_api.Member` objects 
@@ -1654,64 +1702,6 @@ class Member:
 
         pe_database.query_single(temp_query)
         
-
-
-class Solve:
-    
-    
-    def __init__(self, **kwargs):
-        
-        self._problem: Optional[Problem] = None
-        self._problem_id: Optional[int] = None
-        self._member: Optional[Member] = None
-        self._unixtime = Optional[int] = None
-        
-        for k, val in kwargs.items():
-            self.__dict__[k] = val
-            
-            
-    def problem(self) -> Problem:
-        
-        if self._problem is None and self._problem_id is None:
-            raise Exception("this solve object does not have a problem object or problem id attached")
-        
-        if self._problem is None:
-            self._problem = Problem(_problem_id=self._problem_id)
-            
-        return self._problem
-    
-    
-    def problem_id(self) -> int:
-        
-        if self._problem is None and self._problem_id is None:
-            raise Exception("this solve object does not have a problem object or problem id attached")
-        
-        return self.problem().problem_id()
-            
-        
-    def member(self) -> Member:
-        
-        if self._member is None:
-            raise ValueError("_member field has not been specified")
-        
-        return self._member
-    
-    
-    def unixtime(self) -> int:
-        
-        if self._unixtime is None:
-            raise ValueError("_unixtime field has not been specified")
-        
-        return self._unixtime
-
-
-
-class Award:
-    
-    
-    def __init__(self, **kwargs):
-        pass
-
 
 
 class Challenge:
@@ -1809,6 +1799,7 @@ class Challenge:
             raise Exception("Could not find the challenge")
         
         challenge.accept()
+
         
         
         
