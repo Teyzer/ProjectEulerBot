@@ -209,9 +209,7 @@ async def major_update() -> bool:
                 # add related emojis
                 # optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
                 optional_bee = " ⚡" if problem.problem_id() == len(problems) else ""
-                optional_smooth_score = " " + pe_events.eventSmoothen.update_event_in_message(member, problem_id)
-
-                optional_emojis = optional_bee + optional_smooth_score
+                optional_emojis = optional_bee
                 
                 sending_message = sending_message + optional_emojis + " " + PROBLEM_LINK.format(problem.problem_id())
                 await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
