@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 
 import datetime
 import pytz
+import locale
 import json
 import time
 
@@ -283,6 +284,9 @@ class Problem:
         """
         Return the name (title) of the problem
         """
+
+        if self.problem_id() < 0:
+            return f"Bonus #{abs(self.problem_id())}"
         
         if self._name is None and self._problem_id is None:
             raise ValueError("_name and _problem_id fields are both undefined")
@@ -298,6 +302,9 @@ class Problem:
         """
         Returns the unix publication date of the problem 
         """
+
+        if self.problem_id() < 0:
+            return 0
         
         if self._unix_publication is None and self._problem_id is None:
             raise ValueError("_unix_publication and _problem_id fields are both undefined")
@@ -313,6 +320,9 @@ class Problem:
         """
         return the number of solves of a problem
         """
+
+        if self.problem_id() < 0:
+            return 0
         
         if self._solves is None and self._problem_id is None:
             raise ValueError("_solves and _problem_id fields are both undefined")
@@ -337,6 +347,9 @@ class Problem:
         """
         Returns the difficulty a problem
         """
+
+        if self.problem_id() < 0:
+            return 0
         
         if self._difficulty_rating and self._problem_id is None:
             raise ValueError("_difficulty_rating and _problem_id are both undefined")
@@ -939,6 +952,65 @@ class Member:
         
         csv_content = "\n".join(lines)
         return csv_content
+    
+
+    def solves_by_csv(self) -> List[Solve]:
+        
+        """
+        returns a list of all the solves of an user, with the CSV available on the website
+        """
+
+
+        seperator = ","
+
+        solves = []
+        if self.solve_count() == 0:
+            return solves
+
+        csv_string = self.solve_csv()
+        solves_found = set()
+
+        lines = csv_string.split("\n")
+        for line in lines:
+            
+            elements = line.split(seperator)
+            if len(elements) <= 1:
+                continue
+
+            problem_id = int(elements[2].replace("B", "-"))
+            timestamp = int(elements[0])
+            
+            solves.append(
+                Solve(
+                    _problem=Problem(problem_id),
+                    _problem_id=problem_id,
+                    _member=self,
+                    _unixtime=timestamp,
+                    _unix_is_accurate=True
+                )
+            )
+
+            solves_found.add(problem_id)
+
+        for problem_id in self.solved_problems():
+            
+            if problem_id not in solves_found:
+                solves.append(
+                    Solve(
+                        _problem=Problem(problem_id),
+                        _problem_id=problem_id,
+                        _member=self,
+                        _unixtime=0,
+                        _unix_is_accurate=False
+                    )
+                )
+
+        solves = sorted(solves, key = lambda s: s.unixtime())
+        return solves
+
+
+
+
     
 
     def solve_count(self) -> int:
