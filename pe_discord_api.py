@@ -704,7 +704,8 @@ async def command_thread(ctx, problem: int):
 
     try:
         problem_object = pe_api.Problem(problem)
-        optional_problem_name = f"'{problem_object.name()}'"
+        problem_name = problem_object.name().replace('$', '*')
+        optional_problem_name = f"'{problem_name}'"
     except Exception as _:
         optional_problem_name = "Failed to retrieve problem name"
 
