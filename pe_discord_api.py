@@ -1270,7 +1270,7 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
             number_of_favorites = len(favorites[favorite_id])
             members_with_this_favorite = ", ".join(list(map(lambda x: x[0].username_option(), favorites[favorite_id])))
 
-            leaderboard_data.append((number_of_favorites, str(favorite_id) + " - " + members_with_this_favorite))
+            leaderboard_data.append((str(favorite_id) + " - " + members_with_this_favorite, number_of_favorites))
 
         return await inters.leaderboard_page(ctx, leaderboard_data, True, True, 10)
 
