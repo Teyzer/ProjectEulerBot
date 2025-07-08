@@ -614,7 +614,11 @@ async def command_whosolved(ctx, problem: int):
 @option("first_member", description="The first member you want to compare the solves of")
 @option("second_member", description="The second member you want to compare the solves of")
 @option("max_display", description="The maximum displayed number of problems", default=30, min_value=1, max_value=100)
-async def command_compare(ctx, first_member: discord.User, second_member: discord.User, max_display: int):
+@option("both_color", description="The color displayed for the problems solved by both members", default="#FF5733")
+@option("first_color", description="The color displayed for the problems solved by the first member only", default="#C70039")
+@option("second_color", description="The color displayed for the problems solved by the second member only", default="#FFC30F")
+async def command_compare(ctx, first_member: discord.User, second_member: discord.User, max_display: int, 
+                          both_color: str, first_color: str, second_color: str):
 
     await ctx.defer()
 
@@ -652,9 +656,15 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
         else:
             common_not_solves.append(index)
 
-    mix_color = (255,87,51)
-    color_one = (199,0,57)
-    color_two = (255,195,15)
+    def to_rgb(s: str):
+        s = s.strip('#')
+        return tuple(map(lambda x: int(x, 16), [s[2*i:2*(i+1)] for i in range(3)]))
+
+    print(both_color, to_rgb(both_color))
+
+    mix_color = to_rgb(both_color)
+    color_one = to_rgb(first_color)
+    color_two = to_rgb(second_color)
 
     solves_with_color = []
     for solve in common_solves:
