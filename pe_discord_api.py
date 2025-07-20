@@ -344,13 +344,17 @@ async def command_profile(ctx, member: discord.User):
     user_data = m.solve_array()
     rank_in_discord, people_in_discord = m.position_in_discord()
 
+    recent_solves = sum(user_data[-10:])
+    if recent_solves == 10:
+        recent_solves = (user_data[::-1]+[False]).index(False)
+
     file_path = pe_image.generate_profile_image(
         m.username(),
         m.solve_count(),
         len(m.solve_array()),
         rank_in_discord,
         people_in_discord,
-        sum([1 if x else 0 for x in user_data[-10:]]),
+        recent_solves,
         profile_url
     )
 

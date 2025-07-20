@@ -75,7 +75,7 @@ def add_center_fill(img, border=10):
 
 
 # The main function used to create the profile picture images
-def generate_profile_image(username, solved_by, total_problems, rank_in_discord, total_in_discord, solves_in_last_ten, discord_picture_url):
+def generate_profile_image(username, solved_by, total_problems, rank_in_discord, total_in_discord, recent_solves, discord_picture_url):
 
     percentage = round(solved_by / total_problems * 100)
     general_border = 20
@@ -96,8 +96,13 @@ def generate_profile_image(username, solved_by, total_problems, rank_in_discord,
 
     image = text_adder(image, "RANK IN DISCORD: {0}/{1}".format(rank_in_discord, total_in_discord), (220, 220, 220),
                        (h + w / 3 + 40, general_border * 2 + 60), 20)
-    image = text_adder(image, "SOLVES IN THE 10 RECENT: {0}".format(solves_in_last_ten), (220, 220, 220),
-                       (h + w / 3 + 40, general_border * 2 + 85), 20)
+    if recent_solves < 10:
+        recent_text = f"SOLVES IN THE 10 RECENT: {recent_solves}"
+    else:
+        recent_text = f"RUN OF RECENT PROBLEMS: {recent_solves}"
+    image = text_adder(image, recent_text, (220, 220, 220),
+                        (h + w / 3 + 40, general_border * 2 + 85), 20)
+
 
     image.save("images_saves/{0}.png".format(username))
     return "images_saves/{0}.png".format(username)
