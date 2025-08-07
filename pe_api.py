@@ -1540,6 +1540,8 @@ class Member:
         second_len = len(project_euler_data[1])
         third_len = len(project_euler_data[2])
         
+        category_lengths = [first_len, second_len, third_len]
+
         new_awards = ([], [], [])
         
         if len(project_euler_data) != 3:
@@ -1548,17 +1550,13 @@ class Member:
         if len(database_data) != 3:
             raise Exception("database data is not long enough", database_data, self._username)
         
-        for i in range(first_len):
-            if project_euler_data[0][i] == True and database_data[0][i] == False:
-                new_awards[0].append(i)
-            
-        for i in range(second_len):
-            if project_euler_data[1][i] == True and database_data[1][i] == False:
-                new_awards[1].append(i)
-
-        for i in range(third_len):
-            if project_euler_data[2][i] == True and database_data[2][i] == False:
-                new_awards[2].append(i)
+        for category in range(3):
+            try:
+                for i in range(category_lengths[category]):
+                    if project_euler_data[category][i] == True and database_data[category][i] == False:
+                        new_awards[category].append(i)
+            except Exception as e:
+                phone_api.bot_crashed(f"Could not add awards properly, {self.username()}, {e}")
             
         return new_awards
         
