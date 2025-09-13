@@ -1737,8 +1737,12 @@ class Member:
                 continue
         
             current = Member(_username=username)
-            current.update_from_friend_list(project_euler_data)
             
+            try:
+                current.update_from_friend_list(project_euler_data)
+            except Exception as _:
+                continue
+
             if username in database_usernames:
                 current.update_from_database(data = database_data)
                 

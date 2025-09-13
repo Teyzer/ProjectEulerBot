@@ -11,6 +11,7 @@ from requests import TooManyRedirects
 
 import pe_database
 import pe_api
+import pe_rss
 import pe_image
 import pe_plot
 import pe_events
@@ -67,6 +68,7 @@ PREFIX = "&"
 
 # The IDs of the channels in which solves and achievements are announced
 CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
+MAIN_ANNOUNCEMENT_CHANNEL = 1132762771356922036
 SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
 TESTING_CHANNEL_TO_ANNOUNCE = 1179793930993283144
 BRAINSTORMING_CHANNEL = 1268346986810183680
@@ -142,6 +144,11 @@ async def major_update() -> bool:
 
     # In the console
     console.log(f"Starting repeat #{REPEATS_SINCE_START}", end="| ")
+
+    try:
+        await announce_rss()
+    except Exception as exc:
+        console.log(exc)
 
     if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
         console.log("Trying to update global stats... ", end="")
@@ -714,6 +721,7 @@ async def command_thread(ctx, problem: int):
     
     # Get the list of the threads objects on the server where the command was used
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
+    # print(available_threads)
     thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
     try:
@@ -1552,15 +1560,105 @@ async def sufficient_permissions(member):
     return admin_role in member.roles or mod_role in member.roles
 
 
-async def announce_messages(messages: list):
+async def announce_messages(messages: List[Tuple[str, int | str]]):
     
     possible_channels = {
-        "TEST_CHANNEL": SMALL_ANNOUNCEMENTS_CHANNEL
+        "ANNOUNCEMENT_CHANNEL": MAIN_ANNOUNCEMENT_CHANNEL,
+        "TEST_CHANNEL": SMALL_ANNOUNCEMENTS_CHANNEL,
+        "OWN_SERVER_TEST_CHANNEL": TESTING_CHANNEL_TO_ANNOUNCE
     }
 
     for message, channel_description in messages:
-        channel = bot.get_channel(possible_channels[channel_description])
+        channel_id = possible_channels[channel_description] if channel_description in possible_channels else channel_description
+        channel = bot.get_channel(channel_id)
         await channel.send(message, allowed_mentions = discord.AllowedMentions(users=False))
+
+
+async def create_discord_event(guild_id: int, start_unix: int, title: str,
+    place: str, description: str = "", duration_minutes: int = 60, ) -> discord.ScheduledEvent:
+    """
+    Create a Discord scheduled event (EXTERNAL) at the given Unix timestamp.
+    - Only creates if start time is strictly in the future (UTC).
+    - Requires the bot to have 'Manage Events' in the guild.
+    """
+
+    gid = int(guild_id)
+    start_dt = datetime.datetime.fromtimestamp(start_unix, tz=datetime.timezone.utc)
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if not (start_dt > now):
+        raise ValueError("start_unix must be strictly greater than current time (UTC).")
+
+    end_dt = start_dt + datetime.timedelta(minutes=duration_minutes)
+    guild = bot.get_guild(gid) or await bot.fetch_guild(gid)
+
+    event = await guild.create_scheduled_event(
+        name=title or "Untitled",
+        start_time=start_dt,
+        end_time=end_dt,
+        location=place or "",
+        description=description or ""
+    )
+    return event
+
+
+
+
+async def announce_rss():
+    
+    data = pe_api.ProjectEulerRequest(
+        pe_api.NOT_MINIMAL_BASE_URL.format("rss2_euler.xml"), 
+        need_login=False
+    )
+
+    if not data.response:
+        return
+
+    pe_database.database_setup("authentic.db")
+    current_guids = list(map(
+        lambda row: row["guid"],
+        pe_database.query_single("SELECT * FROM rss_feed")
+    ))
+
+    messages = []
+    problem_events = []
+
+    new_guids = []
+    for element in pe_rss.parse_rss_items(data.response):
+        
+        guid = element["guid"]
+        title = element["title"]
+        desc = element["description"]
+
+        if guid in current_guids:
+            continue
+
+        new_guids.append(guid)
+        if "problem_id" in guid:
+            problem_id = int(guid[len("problem_id_"):])
+            publication_unix_time = pe_rss.release_to_unix(desc)
+            problem_events.append((problem_id, publication_unix_time))
+            continue
+
+        messages.append((
+            pe_rss.html_to_discord_markdown(desc, title),
+            MAIN_ANNOUNCEMENT_CHANNEL
+        ))
+
+    await announce_messages(messages)
+    for guid in new_guids:
+        query = f"INSERT INTO rss_feed (guid) VALUES ('{guid}');"
+        pe_database.query_single(query)
+
+    for problem_id, publication_unix_time in problem_events:
+        try:
+            await create_discord_event(
+                PROJECT_EULER_SERVER, publication_unix_time, f"Problem #{problem_id} of Project Euler!", 
+                f"https://projecteuler.net/problem={problem_id}", "Have fun!", 1440
+            )
+        except ValueError as exc:
+            console.log(exc)
+
 
 
 
@@ -1570,5 +1668,7 @@ async def tester():
 
 
 if __name__ == "__main__":
-    pass
+    import asyncio
+    loop = asyncio.run(announce_rss())
+    
     
