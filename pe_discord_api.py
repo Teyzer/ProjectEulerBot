@@ -435,7 +435,7 @@ async def command_kudos(ctx, member: discord.User):
     if not pe_member.has_kudos_in_database():
         pe_member.push_kudo_to_database()
         return await ctx.respond("Your current posts have been saved in the database. Next time you use this command,"
-                                 "the bot will display how manny kudos you earned.")
+                                 "the bot will display how many kudos you earned.")
 
     new_kudos = pe_member.get_new_kudos()
     pe_member.push_kudo_to_database()
