@@ -1717,7 +1717,7 @@ class Member:
         """
 
         database_data = pe_database.query_single("SELECT * FROM members;")
-        project_euler_data = ProjectEulerRequest("https://www.projecteuler.net/minimal=friends")
+        project_euler_data = ProjectEulerRequest("https://projecteuler.net/minimal=friends")
 
         database_usernames = list(map(
             lambda member: member["username"],
