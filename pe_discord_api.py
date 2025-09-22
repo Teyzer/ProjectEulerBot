@@ -150,10 +150,10 @@ async def major_update() -> bool:
     except Exception as exc:
         console.log(exc)
 
-    if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
-        console.log("Trying to update global stats... ", end="")
-        global_update_output = pe_api.update_global_stats()
-        console.log(global_update_output, end= " | ")
+    # if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
+    #     console.log("Trying to update global stats... ", end="")
+    #     global_update_output = pe_api.update_global_stats()
+    #     console.log(global_update_output, end= " | ")
 
     # Getting the data required
     try:
@@ -1614,7 +1614,7 @@ async def announce_rss():
     if not data.response:
         return
 
-    pe_database.database_setup("authentic.db")
+    # pe_database.database_setup("authentic.db")
     current_guids = list(map(
         lambda row: row["guid"],
         pe_database.query_single("SELECT * FROM rss_feed")

@@ -26,6 +26,8 @@ MAX_TRIES = 3
 CAPTCHA_KEY = None
 PROFILE_NAME = None
 
+PHPSESS_NAME = "__Host-PHPSESSID"
+
 
 def session_setup(captcha: str, profile: str) -> None:
 
@@ -78,7 +80,7 @@ def try_fetching_cookies(human: bool = False):
     service = Service(executable_path='/usr/local/bin/geckodriver')
 
     options = webdriver.FirefoxOptions()
-    options.add_argument("-headless")
+    # options.add_argument("-headless")
 
     driver = webdriver.Firefox(service=service, options=options)
     driver.set_window_size(1080, 720)
@@ -91,6 +93,7 @@ def try_fetching_cookies(human: bool = False):
     get_captcha(driver, captcha, filename)
 
     captcha_result = solve(filename, human)
+    console.log(f"[-] Tried to guess {captcha_result} as Captcha")
 
     # FILL THE FORM
 
@@ -127,7 +130,7 @@ def refresh_tokens():
     current_tries = 0
     found_keepalive = False
 
-    values = {"PHPSESSID": None, "keep_alive": None} # [PHPSESSID, keep_alive]
+    values = {PHPSESS_NAME: None, "keep_alive": None} # [PHPSESSID, keep_alive]
 
     while not found_keepalive and current_tries < MAX_TRIES:
 
@@ -138,8 +141,9 @@ def refresh_tokens():
 
         for cookie in cookies:
 
-            if cookie["name"] == "PHPSESSID":
-                values["PHPSESSID"] = cookie["value"]
+            console.log(cookie["name"], cookie["value"])
+            if cookie["name"] == PHPSESS_NAME:
+                values[PHPSESS_NAME] = cookie["value"]
 
             if cookie["name"] == "keep_alive":
                 found_keepalive = True
@@ -147,7 +151,7 @@ def refresh_tokens():
     
     if values["keep_alive"] is not None:
         phone_api.bot_info("Token refreshed automatically")
-        console.log("[+] Token refreshed automatically")
+        console.log("[+] Token refreshed automatically", values[PHPSESS_NAME])
     else:
         phone_api.bot_crashed("Failed to refresh token")
         console.log("[*] Failed to refresh token")
