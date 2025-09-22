@@ -80,7 +80,7 @@ def try_fetching_cookies(human: bool = False):
     service = Service(executable_path='/usr/local/bin/geckodriver')
 
     options = webdriver.FirefoxOptions()
-    # options.add_argument("-headless")
+    options.add_argument("-headless")
 
     driver = webdriver.Firefox(service=service, options=options)
     driver.set_window_size(1080, 720)
