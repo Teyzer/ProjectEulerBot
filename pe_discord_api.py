@@ -1,11 +1,8 @@
 import asyncio
 import time
-
 import datetime
-import pytz
 
 from math import *
-import json
 
 from requests import TooManyRedirects
 
@@ -16,6 +13,8 @@ import pe_image
 import pe_plot
 import pe_events
 import pe_session
+import pe_decorators
+import pe_global_objects as pe_global
 import phone_api
 import itertools
 
@@ -39,83 +38,15 @@ from typing import Dict, List, Tuple, Any, Optional
 
 
 console = Console(record = True)
-
-TEST_SERVER = 943488228084813864
-PROJECT_EULER_SERVER = 903915097804652595
-GUILD_IDS = [PROJECT_EULER_SERVER]
-
-BOT_APPLICATION_ID = 930813331512635413
-
-ADMINISTRATOR_ROLE = 905683104461619261
-MODERATOR_ROLE = 1103325920028266607
-
-# Initial condition
-STARTING_TIME = datetime.datetime.now(pytz.utc)
-
-# In order to keep track of the last time the solves of members were checked
-REPEATS_SINCE_START = 0
-REPEATS_SUCCESSFUL_SINCE_START = 0
-
-# Basic Discord stuff
-intents = discord.Intents.all()
-bot = discord.Bot(guild_ids=GUILD_IDS, intents=intents)
-
-# Time between each check of solves, in seconds
-AWAIT_TIME = 60
-
-# Previously, the prefix that was used to make commands
-PREFIX = "&"
-
-# The IDs of the channels in which solves and achievements are announced
-CHANNELS_TO_ANNOUNCE = [944372979809255483, 1002176082713256028]
-MAIN_ANNOUNCEMENT_CHANNEL = 1132762771356922036
-SPECIAL_CHANNELS_TO_ANNOUNCE = [944372979809255483, 1004530709760847993]
-TESTING_CHANNEL_TO_ANNOUNCE = 1179793930993283144
-BRAINSTORMING_CHANNEL = 1268346986810183680
-SMALL_ANNOUNCEMENTS_CHANNEL = 1268526845318529034
-THREADS_CHANNEL = 904251551474942002
-
-SOLVE_ROLES = [904255861503975465, 905987654083026955, 975720598741331988, 905987783892561931, 975722082996473877, 905987999949529098, 975722386559225878, 975722571473498142, 1051483511749619722, 1351315236879073301]
-PERFECTIONIST_ROLE = 1135697719319609384
-
-# Constants for text
-GREEN_CIRCLE = "🟢"
-ORANGE_CIRCLE = "🟠"
-RED_CIRCLE = "🔴"
-
-FIRST_PLACE_EMOJI = "🥇"
-SECOND_PLACE_EMOJI = "🥈"
-THIRD_PLACE_EMOJI = "🥉"
-
-AWARDING_SENTENCES = [
-    "{0} is the first solver for problem #{1}: '{2}'! Congratulations! " + FIRST_PLACE_EMOJI,
-    "{0} is the second solver for problem #{1}: '{2}'! Congratulations! " + SECOND_PLACE_EMOJI,
-    "{0} is the third solver for problem #{1}: '{2}'! Congratulations! " + THIRD_PLACE_EMOJI,
-    "{0} solved the problem #{1}: '{2}' which has been solved by {3} people, well done!"
-]
-
-THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
-
-PROBLEM_LINK = "[Jump to problem {0}](<https://projecteuler.net/problem={0}>)"
-
-
-def pe_discord_api_setup(channels: dict):
-
-    global CHANNELS_TO_ANNOUNCE, SPECIAL_CHANNELS_TO_ANNOUNCE, SMALL_ANNOUNCEMENTS_CHANNEL, THREADS_CHANNEL
-
-    CHANNELS_TO_ANNOUNCE = channels["solve_channel"]
-    SPECIAL_CHANNELS_TO_ANNOUNCE = channels["award_channel"]
-    SMALL_ANNOUNCEMENTS_CHANNEL = channels["small_channel"]
-    THREADS_CHANNEL = channels["thread_channel"]
-
+bot: discord.Bot = pe_global.bot
 
 
 async def major_update() -> bool:
 
-    global REPEATS_SINCE_START
-    global REPEATS_SUCCESSFUL_SINCE_START
+    # global REPEATS_SINCE_START
+    # global REPEATS_SUCCESSFUL_SINCE_START
 
-    REPEATS_SINCE_START += 1
+    pe_global.REPEATS_SINCE_START += 1
 
     # SANITY CHECKS
     website_active = pe_session.is_website_active()
@@ -136,24 +67,13 @@ async def major_update() -> bool:
         await async_set_bot_status(3, "Session died")
         return False
 
-    # This is turned down for now as it doesn't work
-    """
-    if not website_down and not session_alive:
-        pe_session.refresh_tokens()
-    """
-
     # In the console
-    console.log(f"Starting repeat #{REPEATS_SINCE_START}", end="| ")
+    console.log(f"Starting repeat #{pe_global.REPEATS_SINCE_START}", end="| ")
 
     try:
         await announce_rss()
     except Exception as exc:
         console.log(exc)
-
-    # if REPEATS_SINCE_START % (3600 // AWAIT_TIME) == 1:
-    #     console.log("Trying to update global stats... ", end="")
-    #     global_update_output = pe_api.update_global_stats()
-    #     console.log(global_update_output, end= " | ")
 
     # Getting the data required
     try:
@@ -203,22 +123,22 @@ async def major_update() -> bool:
             problem: pe_api.Problem = solve.problem()
             pe_api.push_solve_to_database(member, solve.problem())
 
-            for channel_id in CHANNELS_TO_ANNOUNCE:
+            for channel_id in pe_global.CHANNELS_TO_ANNOUNCE:
                 
-                channel = bot.get_channel(channel_id)
+                channel = pe_global.bot.get_channel(channel_id)
                 
                 #decide what message to send depending on how many solvers there are
                 if int(problem.solves()) <= 3:
-                    sending_message = AWARDING_SENTENCES[problem.solves() - 1].format(member.username_ping(), problem.problem_id(), problem.name())
+                    sending_message = pe_global.AWARDING_SENTENCES[problem.solves() - 1].format(member.username_ping(), problem.problem_id(), problem.name())
                 else:
-                    sending_message = AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id(), problem.name(), problem.solves())
+                    sending_message = pe_global.AWARDING_SENTENCES[3].format(member.username_ping(), problem.problem_id(), problem.name(), problem.solves())
                     
                 # add related emojis
                 # optional_stars = " 🌠" if not event.is_problem_solved(problem.problem_id) else ""
                 optional_bee = " ⚡" if problem.problem_id() == len(problems) else ""
                 optional_emojis = optional_bee
                 
-                sending_message = sending_message + optional_emojis + " " + PROBLEM_LINK.format(problem.problem_id())
+                sending_message = sending_message + optional_emojis + " " + pe_global.PROBLEM_LINK.format(problem.problem_id())
                 await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
             
         if member.solve_count() % 25 == 0:
@@ -226,7 +146,7 @@ async def major_update() -> bool:
             if member.is_discord_linked():
                 await update_member_roles(member)
             
-            for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
+            for channel_id in pe_global.SPECIAL_CHANNELS_TO_ANNOUNCE:
                 channel = bot.get_channel(channel_id)
                 sending_message = member.username_ping() + " has just reached level {0}, congratulations!"
                 sending_message = sending_message.format(member.solve_count() // 25)
@@ -240,7 +160,7 @@ async def major_update() -> bool:
 
         for part in [0, 1, 2]:
             for award in awards[part]:
-                for channel_id in SPECIAL_CHANNELS_TO_ANNOUNCE:
+                for channel_id in pe_global.SPECIAL_CHANNELS_TO_ANNOUNCE:
                     channel = bot.get_channel(channel_id)
                     award_name = awards_specs[part][award]
                     await channel.send(f"{member.username_ping()} got the award '{award_name}', congratulations!", 
@@ -259,11 +179,11 @@ async def major_update() -> bool:
 async def on_ready():
 
     # Global variables in order to modify them
-    global REPEATS_SINCE_START
-    global REPEATS_SUCCESSFUL_SINCE_START
+    # global REPEATS_SINCE_START
+    # global REPEATS_SUCCESSFUL_SINCE_START
 
     # The 'Is playing {}' presence
-    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(ORANGE_CIRCLE)))
+    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(pe_global.ORANGE_CIRCLE)))
     
     # For debugging
     console.log(f'Login made as {bot.user}')
@@ -273,10 +193,15 @@ async def on_ready():
     while not need_to_stop:
         
         # Async sleep
-        await asyncio.sleep(AWAIT_TIME)
+        await asyncio.sleep(pe_global.AWAIT_TIME)
         
         # Main loop
-        await major_update()
+        try:
+            await major_update()
+        except Exception as exc:
+            console.log(exc, traceback.format_exc())
+            phone_api.bot_crashed(exc)
+            continue
 
 
 
@@ -285,6 +210,7 @@ COMMANDS
 """
 
 @bot.slash_command(name="update", description="Update the known friend list of the bot")
+@pe_decorators.command
 async def command_hello(ctx):
     
     await ctx.defer()
@@ -298,6 +224,7 @@ async def command_hello(ctx):
 
 
 @bot.slash_command(name="status", description="Give the current status of the bot, concerning recently fetched data")
+@pe_decorators.command
 async def command_status(ctx):
     
     text_response = "The last fetch of data was `{0}`. The last successful fetch was made on `{1}`.\n"
@@ -307,7 +234,7 @@ async def command_status(ctx):
 
     fetched_data_status = "successful" if pe_api.LAST_REQUEST_SUCCESSFUL else "unsuccessful"
     fetched_data_time_status = pe_api.LAST_REQUEST_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
-    fetch_starting_time = STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
+    fetch_starting_time = pe_global.STARTING_TIME.strftime("%Y-%m-%d at %H:%M:%S UTC")
     website_status = "online" if  pe_session.is_website_active() else "down"
     session_status = "active" if pe_session.is_connected() else "killed"
 
@@ -327,6 +254,7 @@ async def command_status(ctx):
 
 @bot.slash_command(name="profile", description="Render your project euler profile in a cool image")
 @option("member", description="Mention the member you want the profile to be displayed", default=None)
+@pe_decorators.command
 async def command_profile(ctx, member: discord.User):
 
     await ctx.defer()
@@ -370,6 +298,7 @@ async def command_profile(ctx, member: discord.User):
 
 @bot.slash_command(name="link", description="Link your project euler account and your discord account")
 @option("username", description="Your Project Euler username account (not nickname)")
+@pe_decorators.command
 async def command_link(ctx, username: str):
 
     await ctx.defer()
@@ -400,6 +329,7 @@ async def command_link(ctx, username: str):
 
 
 @bot.slash_command(name="unlink", description="Unlink your Project Euler account with your discord account")
+@pe_decorators.command
 async def command_unlink(ctx):
 
     await ctx.defer()
@@ -420,6 +350,7 @@ async def command_unlink(ctx):
 
 @bot.slash_command(name="kudos", description="Display the kudos progression of your posts on the forum")
 @option("member", description="Mention the member you want the kudos to be displayed", default=None)
+@pe_decorators.command
 async def command_kudos(ctx, member: discord.User):
 
     await ctx.defer()
@@ -455,6 +386,7 @@ async def command_kudos(ctx, member: discord.User):
 @option("member", description="The member you want you want to see the next possible solves", default=None)
 @option("method", description="The method used", choices=["By number of solves", "By order of publication", "By ratio of solves per time unit"], default="By ratio of solves per time unit")
 @option("display_nb", description="The number of problems you want to be displayed", min_value=1, max_value=25, default=10)
+@pe_decorators.command
 async def command_easiest(ctx, member: discord.User, method: str, display_nb: int):
     
     await ctx.defer()
@@ -510,6 +442,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
 @option("data", choices=["solves"], default="solves")
 @option("subset", choices=["local", "global"], default="local")
 @option("days_count", min_value=0, max_value=1000, default=10)
+@pe_decorators.command
 async def command_graph(ctx, data: str, subset: str, days_count: int):
     
     await ctx.defer()
@@ -524,6 +457,7 @@ async def command_graph(ctx, data: str, subset: str, days_count: int):
 
 
 @bot.slash_command(name="roles-languages", description="Select the languages roles you want to be displayed on your profile")
+@pe_decorators.command
 async def command_roles_languages(ctx):
 
     view = inters.DropdownView(bot, ctx.author)
@@ -537,9 +471,6 @@ async def on_message(message):
 
     if message.author == bot.user:
         return
-
-    if message.content.startswith(PREFIX):
-        await message.channel.send("The & command is not supported anymore please use the slash commands with /")
 
     search = re.finditer("#(\d+)", message.content)
     message_problems = set([int(k.group(0)[1:]) for k in search if k.group(0)[1:].isnumeric()])
@@ -587,6 +518,7 @@ async def on_message(message):
 
 @bot.slash_command(name="whosolved", description="Display a list of members who solved a particular problem")
 @option("problem", description="The problem")
+@pe_decorators.command
 async def command_whosolved(ctx, problem: int):
 
     await ctx.defer()
@@ -628,6 +560,7 @@ async def command_whosolved(ctx, problem: int):
 @option("both_color", description="The color displayed for the problems solved by both members", default="#FF5733")
 @option("first_color", description="The color displayed for the problems solved by the first member only", default="#C70039")
 @option("second_color", description="The color displayed for the problems solved by the second member only", default="#FFC30F")
+@pe_decorators.command
 async def command_compare(ctx, first_member: discord.User, second_member: discord.User, max_display: int, 
                           both_color: str, first_color: str, second_color: str):
 
@@ -706,6 +639,7 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
 
 @bot.slash_command(name="thread", description="Create a private thread for a specific problem")
 @option("problem", description="The problem you wish to open a thread for")
+@pe_decorators.command
 async def command_thread(ctx, problem: int):
 
     await ctx.defer()
@@ -722,7 +656,7 @@ async def command_thread(ctx, problem: int):
     # Get the list of the threads objects on the server where the command was used
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
     # print(available_threads)
-    thread_name = THREAD_DEFAULT_NAME_FORMAT.format(problem)
+    thread_name = pe_global.THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
     try:
         problem_object = pe_api.Problem(problem)
@@ -761,6 +695,7 @@ async def command_thread(ctx, problem: int):
     
 
 @bot.slash_command(name="list-threads", description="Show a list of available threads")
+@pe_decorators.command
 async def command_list_threads(ctx):
     
     # Allow for more than 3 seconds of thought
@@ -802,6 +737,7 @@ async def command_list_threads(ctx):
 
 @bot.slash_command(name="randproblem", description="Give a random problem the user has not solved")
 @option("member", description="The targeted member", default=None)
+@pe_decorators.command
 async def command_randproblem(ctx, member: discord.User):
 
     await ctx.defer()
@@ -834,6 +770,7 @@ async def command_randproblem(ctx, member: discord.User):
 @bot.slash_command(name="events", description="Get the status of an event")
 @option("event", description="Which event", choices=["SoPE"])
 @option("page", description="Which page of the leaderboard", min=1, max=10, default=1)
+@pe_decorators.command
 async def command_events(ctx, event: str, page: int):
     
     await ctx.defer()
@@ -857,6 +794,7 @@ async def command_events(ctx, event: str, page: int):
 
 @bot.slash_command(name="events-data", description="Get the data of an event")
 @option("event", description="Which event", choices=["SoPE"])
+@pe_decorators.command
 async def command_events_data(ctx, event: str):
     
     await ctx.defer()
@@ -880,6 +818,7 @@ async def command_events_data(ctx, event: str):
 
 @bot.slash_command(name="grid", description="Get the solve grid of an user")
 @option("member", description="The targeted user", default = None)
+@pe_decorators.command
 async def commmand_grid(ctx, member: discord.User):
 
     await ctx.defer()
@@ -906,6 +845,7 @@ async def commmand_grid(ctx, member: discord.User):
     
 @bot.slash_command(name="grid-animation", description="Get the solve grid of an user")
 @option("member", description="The targeted user", default = None)
+@pe_decorators.command
 async def commmand_grid_animation(ctx, member: discord.User):
     
     await ctx.defer()
@@ -936,6 +876,7 @@ async def commmand_grid_animation(ctx, member: discord.User):
 
 @bot.slash_command(name="update-roles")
 @option("member", description="The member that you want to be updated", default = None)
+@pe_decorators.command
 async def command_update_roles(ctx, member: discord.User):
 
     # This allows to give more than 3 seconds to execute the command
@@ -954,6 +895,7 @@ async def command_update_roles(ctx, member: discord.User):
 @bot.slash_command(name="announce-back")
 @option("problem", description="Which problem", min=1)
 @option("member", description="Which member", default = None)
+@pe_decorators.command
 async def command_announce_back(ctx, problem: int, member: discord.User):
 
     await ctx.defer()
@@ -975,6 +917,7 @@ async def command_announce_back(ctx, problem: int, member: discord.User):
 
 
 @bot.slash_command(name="force-new-session")
+@pe_decorators.command
 async def command_force_new_session(ctx):
 
     await ctx.defer()
@@ -993,6 +936,7 @@ async def command_force_new_session(ctx):
 
 
 @bot.slash_command(name="leaderboard")
+@pe_decorators.command
 async def command_leaderboard(ctx):
 
     await ctx.defer()
@@ -1003,6 +947,7 @@ async def command_leaderboard(ctx):
 
 @bot.slash_command(name="botisdown")
 @option("details", description="If you want to describe why you think so", default="")
+@pe_decorators.command
 async def bot_is_down(ctx, details: str):
 
     await ctx.defer()
@@ -1023,6 +968,7 @@ async def bot_is_down(ctx, details: str):
     "Lucky Luke"
 ])
 @option("member", description="Which member", default = None)
+@pe_decorators.command
 async def command_awards_requirements(ctx, award: str, member: discord.User = None):
 
     await ctx.defer()
@@ -1096,6 +1042,7 @@ async def command_awards_requirements(ctx, award: str, member: discord.User = No
 @bot.slash_command(name="problems-select", description="Gives a precise list of problems")
 @option("options", description="Options")
 @option("member", description="Which member", default = None)
+@pe_decorators.command
 async def command_awards_requirements(ctx, options: str, member: discord.User = None):
 
     limit_for_problems = 15
@@ -1206,6 +1153,8 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
 
 @bot.slash_command(name="privacy-settings")
 @option("setting", description="What privacy you want to be associated with your account", choices=["Public", "Private"])
+@pe_decorators.command
+@pe_decorators.command
 async def command_privacy_settings(ctx, setting: str):
 
     m = pe_api.Member(_discord_id = ctx.author.id)
@@ -1225,6 +1174,7 @@ async def command_privacy_settings(ctx, setting: str):
 @bot.slash_command(name="set-favorite-problem")
 @option("Problem ID", description="The problem you want to set as favorite")
 @option("Reason", description="Why do you love that problem")
+@pe_decorators.command
 async def command_set_favorite_problem(ctx, problem_id: int, reason: str):
 
     await ctx.defer()
@@ -1240,6 +1190,7 @@ async def command_set_favorite_problem(ctx, problem_id: int, reason: str):
 
 
 @bot.slash_command(name="remove-favorite-problem")
+@pe_decorators.command
 async def command_remove_favorite_problem(ctx):
 
     await ctx.defer()
@@ -1252,6 +1203,7 @@ async def command_remove_favorite_problem(ctx):
 
 @bot.slash_command(name="get-favorite-problems")
 @option("member", description="Which member", default = None)
+@pe_decorators.command
 async def command_get_favorite_problems(ctx, member: discord.User = None):
 
     await ctx.defer()
@@ -1301,6 +1253,7 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
 @bot.slash_command(name="guess-difficulty")
 @option("Problem ID", description="Which problem")
 @option("Neighbors", description="Number of neighbors to use to run the KNN-algorithm", min=1, default=None)
+@pe_decorators.command
 async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
 
     await ctx.defer()
@@ -1326,6 +1279,7 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
 
 @bot.slash_command(name="guess-difficulty-all")
 @option("Neighbors", description="Number of neighbors to use to run the KNN-algorithm", min=1, default=None)
+@pe_decorators.command
 async def command_guess_difficulty_all(ctx, neighbors: int = 5):
 
     await ctx.defer()
@@ -1350,6 +1304,7 @@ async def command_guess_difficulty_all(ctx, neighbors: int = 5):
 @option("Member", description="Which member")
 @option("Problem ID", description="Which problem")
 @option("Duration in hours", description="Which problem")
+@pe_decorators.command
 async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     
     await ctx.defer()
@@ -1377,6 +1332,7 @@ async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     
 @bot.slash_command(name="challenge-accept")
 @option("Challenge ID", description="Which challenge you want to accept")
+@pe_decorators.command
 async def command_challenge_accept(ctx, challenge_id: int):
     
     await ctx.defer()
@@ -1400,33 +1356,9 @@ async def command_challenge_accept(ctx, challenge_id: int):
 COMMANDS FOR EVENTS ONLY
 """
 
-@bot.slash_command(name="event-current-problem", description="Gives you the current problem, and the remaining time you have to solve it.")
-async def command_event_current_problem(ctx):
-
-    event = pe_events.eventMonthly1()
-
-    current_problem = event.current_problem(diff_range=0)
-    seconds_left = event.last_announcement(diff_range=0) + pe_events.eventMonthly1.get_refresh_rate_easy() - int(time.time())
-    hours_left = round(seconds_left / 3600, 1)
-
-    response_text = f"The current `easy` problem to solve is [**{current_problem}**](<https://projecteuler.net/problem={current_problem}>), you have {seconds_left} seconds ({hours_left} hours) left to solve it.\n"
-    
-    current_problem = event.current_problem(diff_range=1)
-    seconds_left = event.last_announcement(diff_range=1) + pe_events.eventMonthly1.get_refresh_rate_medium() - int(time.time())
-    hours_left = round(seconds_left / 3600, 1)
-    
-    response_text += f"The current `medium` problem to solve is [**{current_problem}**](<https://projecteuler.net/problem={current_problem}>), you have {seconds_left} seconds ({hours_left} hours) left to solve it.\n"
-
-    current_problem = event.current_problem(diff_range=2)
-    seconds_left = event.last_announcement(diff_range=2) + pe_events.eventMonthly1.get_refresh_rate_hard() - int(time.time())
-    hours_left = round(seconds_left / 3600, 1)
-    
-    response_text += f"The current `hard` problem to solve is [**{current_problem}**](<https://projecteuler.net/problem={current_problem}>), you have {seconds_left} seconds ({hours_left} hours) left to solve it."
-
-    return await ctx.respond(response_text)
-
 
 @bot.slash_command(name="event-current-leaderboard", description="Gives you the current leaderboard.")
+@pe_decorators.command
 async def command_event_current_leaderboard(ctx):
 
     await ctx.defer()
@@ -1436,26 +1368,6 @@ async def command_event_current_leaderboard(ctx):
 
     return await inters.leaderboard_page(ctx, leaderboard_data, True, True, 10)
 
-
-@bot.slash_command(name="force-event-new-problem")
-@option("diff_range", choices=[0, 1, 2])
-async def command_force_event_new_problem(ctx, diff_range: int):
-
-    await ctx.defer()
-
-    perms = await sufficient_permissions(ctx.guild.get_member(ctx.author.id))
-
-    if not perms:
-        return await ctx.respond("You need to be a moderator or more to use this, sorry!", ephemeral=True)
-    
-    event = pe_events.eventMonthly1()
-
-    messages_to_send = []
-    for message in event.switch_to_new_problem(diff_range):
-        messages_to_send.append((message, "TEST_CHANNEL"))
-
-    await announce_messages(messages_to_send)
-    return await ctx.respond("Should be done.")
 
 
 
@@ -1469,7 +1381,7 @@ async def update_member_roles(m: pe_api.Member):
     if m.discord_id() == "":
         return
 
-    guild = bot.get_guild(PROJECT_EULER_SERVER)
+    guild = bot.get_guild(pe_global.PROJECT_EULER_SERVER)
     member = guild.get_member(int(m.discord_id()))
     
     # If the member could not be retrieved, if they left the discord server for exemple
@@ -1481,8 +1393,8 @@ async def update_member_roles(m: pe_api.Member):
     solve_index = (m.solve_count() // 100) if m.solve_count() < 1000 else 9
     
     # Getting the object roles rather than simply their id
-    appropriate_role = guild.get_role(SOLVE_ROLES[solve_index])
-    perfectionist_role = guild.get_role(PERFECTIONIST_ROLE)
+    appropriate_role = guild.get_role(pe_global.SOLVE_ROLES[solve_index])
+    perfectionist_role = guild.get_role(pe_global.PERFECTIONIST_ROLE)
 
     # We check if the member already has the role corresponding to its solve range
     found_appropriate = False
@@ -1494,7 +1406,7 @@ async def update_member_roles(m: pe_api.Member):
 
     for role in roles:
 
-        if role.id in SOLVE_ROLES:
+        if role.id in pe_global.SOLVE_ROLES:
             if role.id == appropriate_role.id:
                 found_appropriate = True
             else:
@@ -1516,8 +1428,8 @@ async def update_member_roles(m: pe_api.Member):
 
 async def get_available_threads(guild_id: int, channel_id: int) -> list:
     
-    if int(guild_id) == PROJECT_EULER_SERVER:
-        channel_id = THREADS_CHANNEL
+    if int(guild_id) == pe_global.PROJECT_EULER_SERVER:
+        channel_id = pe_global.THREADS_CHANNEL
     
     guild = bot.get_guild(int(guild_id))
     channel = guild.get_channel(int(channel_id))
@@ -1541,21 +1453,21 @@ async def async_set_bot_status(choice: int, crash_message: Optional[str] = None)
     """
 
     if choice == 0:
-        await bot.change_presence(activity=discord.Game(name=f"{ORANGE_CIRCLE} Starting"))
+        await bot.change_presence(activity=discord.Game(name=f"{pe_global.ORANGE_CIRCLE} Starting"))
     elif choice == 1:
-        await bot.change_presence(activity=discord.Game(name=f"{GREEN_CIRCLE} /link to use me"))
+        await bot.change_presence(activity=discord.Game(name=f"{pe_global.GREEN_CIRCLE} /link to use me"))
     elif choice == 2:
-        await bot.change_presence(activity=discord.Game(name=f"{RED_CIRCLE} /status for details"))
+        await bot.change_presence(activity=discord.Game(name=f"{pe_global.RED_CIRCLE} /status for details"))
     elif choice == 3:
-        await bot.change_presence(activity=discord.Game(name=f"{RED_CIRCLE} {crash_message}"))
+        await bot.change_presence(activity=discord.Game(name=f"{pe_global.RED_CIRCLE} {crash_message}"))
 
 
 async def sufficient_permissions(member):
 
     guild = member.guild
 
-    admin_role = guild.get_role(ADMINISTRATOR_ROLE)
-    mod_role = guild.get_role(MODERATOR_ROLE)
+    admin_role = guild.get_role(pe_global.ADMINISTRATOR_ROLE)
+    mod_role = guild.get_role(pe_global.MODERATOR_ROLE)
 
     return admin_role in member.roles or mod_role in member.roles
 
@@ -1563,9 +1475,9 @@ async def sufficient_permissions(member):
 async def announce_messages(messages: List[Tuple[str, int | str]]):
     
     possible_channels = {
-        "ANNOUNCEMENT_CHANNEL": MAIN_ANNOUNCEMENT_CHANNEL,
-        "TEST_CHANNEL": SMALL_ANNOUNCEMENTS_CHANNEL,
-        "OWN_SERVER_TEST_CHANNEL": TESTING_CHANNEL_TO_ANNOUNCE
+        "ANNOUNCEMENT_CHANNEL": pe_global.MAIN_ANNOUNCEMENT_CHANNEL,
+        "TEST_CHANNEL": pe_global.SMALL_ANNOUNCEMENTS_CHANNEL,
+        "OWN_SERVER_TEST_CHANNEL": pe_global.TESTING_CHANNEL_TO_ANNOUNCE
     }
 
     for message, channel_description in messages:
@@ -1642,7 +1554,7 @@ async def announce_rss():
 
         messages.append((
             pe_rss.html_to_discord_markdown(desc, title),
-            MAIN_ANNOUNCEMENT_CHANNEL
+            pe_global.MAIN_ANNOUNCEMENT_CHANNEL
         ))
 
     await announce_messages(messages)
@@ -1653,7 +1565,7 @@ async def announce_rss():
     for problem_id, publication_unix_time in problem_events:
         try:
             await create_discord_event(
-                PROJECT_EULER_SERVER, publication_unix_time, f"Problem #{problem_id} of Project Euler!", 
+                pe_global.PROJECT_EULER_SERVER, publication_unix_time, f"Problem #{problem_id} of Project Euler!", 
                 f"https://projecteuler.net/problem={problem_id}", "Have fun!", 1440
             )
         except ValueError as exc:

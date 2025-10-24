@@ -2,6 +2,7 @@ import pe_api
 import pe_discord_api
 import pe_database
 import pe_session
+import pe_global_objects as pe_global
 
 from rich.console import Console
 
@@ -22,7 +23,7 @@ def setup() -> str:
     with open(profile_name, "r") as f:
         profile = json.load(f)
 
-    pe_discord_api.pe_discord_api_setup(profile["announcement_channels"])
+    pe_global.pe_discord_api_setup(profile["announcement_channels"])
     pe_api.pe_api_setup(profile["session_keys"], profile["pe_account"])
     pe_database.database_setup(profile["database_file"])
     pe_session.session_setup(profile["captcha_key"], profile_name)
@@ -38,7 +39,7 @@ if __name__ == '__main__':
     discord_key = setup()
     temp_console.rule()
     
-    pe_discord_api.bot.run(discord_key)
+    pe_global.bot.run(discord_key)
     
 
     

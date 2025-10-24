@@ -52,6 +52,10 @@ def is_recent_unix(unix_timestamp: int):
 
 
 
+class EulerRequestFail(Exception):
+    pass
+
+
 class ProjectEulerRequest:
 
 
@@ -99,6 +103,7 @@ class ProjectEulerRequest:
                 ProjectEulerRequest.request_failed()
                 self.response: str | Exception | None = None
                 console.log(r.text)
+                raise EulerRequestFail
             else:
                 ProjectEulerRequest.request_succeeded()
                 self.response: str | Exception | None = r.text
@@ -107,12 +112,14 @@ class ProjectEulerRequest:
 
         except Exception as err:
 
-            # Previously, err was raised again at the end of this, but returning no data seems better
-            phone_api.bot_crashed(str(err))
-            ProjectEulerRequest.request_failed()
-            self.status = None
-            self.response: str | Exception | None = None
-            self.err = err
+            if not isinstance(err, ProjectEulerRequest):
+                phone_api.bot_crashed(str(err))
+                ProjectEulerRequest.request_failed()
+                self.status = None
+                self.response: str | Exception | None = None
+                self.err = err
+
+            raise EulerRequestFail
             
 
 

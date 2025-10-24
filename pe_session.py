@@ -177,6 +177,8 @@ def is_connected() -> bool:
     except TooManyRedirects as exc:
         pe_api.console.log(exc, traceback.format_exc())
         return False
+    except pe_api.EulerRequestFail:
+        return False
 
     if pe_request.status != 200:
         return False
@@ -185,7 +187,10 @@ def is_connected() -> bool:
 
 
 def is_website_active() -> bool:
-    pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/", False)
+    try:
+        pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/", False)
+    except pe_api.EulerRequestFail as _:
+        return False
     return pe_request.status == 200
 
 
