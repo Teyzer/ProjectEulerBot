@@ -1,6 +1,7 @@
 import discord
 import asyncio
 import pe_discord_api
+import pe_global_objects as pe_global
 import pe_api
 import math
 
@@ -134,12 +135,12 @@ def problem_thread_view(problem_number: int):
         available_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id)
         for th in available_threads:
             
-            if th.name == pe_discord_api.THREAD_DEFAULT_NAME_FORMAT.format(problem_number):
+            if th.name == pe_global.THREAD_DEFAULT_NAME_FORMAT.format(problem_number):
                 
                 if th.archived:
                     await th.unarchive()
                 
-                await th.add_user(pe_discord_api.bot.get_user(interaction.user.id))
+                await th.add_user(pe_global.bot.get_user(interaction.user.id))
                 break 
 
     # Add the method to the button object
