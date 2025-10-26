@@ -2173,7 +2173,18 @@ def get_fastest_solvers(problem: int):
         
         lines = element.find_all("td")
 
-        if len(lines) != 5:
+        if len(lines) == 5:
+            username = lines[1].text
+
+            try_nickname = lines[1].find_all("span")
+            if len(try_nickname) != 0:
+                username = lines[1].find("span").get("title")
+
+            solve_time_string = lines[4].text
+
+        elif len(lines) == 2:
+            solve_time_string = lines[1].text
+        else:
             continue
 
         """
@@ -2183,14 +2194,6 @@ def get_fastest_solvers(problem: int):
         lines[3] = language
         lines[4] = time
         """
-
-        username = lines[1].text
-
-        try_nickname = lines[1].find_all("span")
-        if len(try_nickname) != 0:
-            username = lines[1].find("span").get("title")
-
-        solve_time_string = lines[4].text
 
         correspondences = {
             "second": 1,
@@ -2208,7 +2211,9 @@ def get_fastest_solvers(problem: int):
                 if k in part_str:
                     solve_time += correspondences[k] * int(part_str.split()[0])
 
-        data[str(rank)] = {"username": username, "solve_time": solve_time}
+        data[str(rank)] = {"solve_time": solve_time}
+        if len(lines) == 5:
+            data[str(rank)]["username"] = username
 
     return data
 
