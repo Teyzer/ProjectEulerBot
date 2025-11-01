@@ -80,7 +80,7 @@ class ProjectEulerRequest:
         TOTAL_SUCCESS_REQUESTS += 1
 
     
-    def __init__(self, target_url: str, need_login: bool = True) -> None:
+    def __init__(self, target_url: str, need_login: bool = True, allowed_tries: int = 5) -> None:
 
         global TOTAL_REQUESTS, SESSION_REQUESTS
         
@@ -92,34 +92,40 @@ class ProjectEulerRequest:
         else:
             cookies = {}
 
-        try:
-            # Do the request to the website, with the right cookies that emulate the account
-            r = requests.get(target_url, cookies=cookies)
-            self.status = int(r.status_code)
-            
-            if r.status_code != 200:
-                # Phone API is sending a notifications to teyzer's phone
-                phone_api.bot_crashed(r.status_code)
-                ProjectEulerRequest.request_failed()
-                self.response: str | Exception | None = None
-                console.log(r.text)
-                raise EulerRequestFail
-            else:
-                ProjectEulerRequest.request_succeeded()
-                self.response: str | Exception | None = r.text
-            
-            self.err = None
+        for try_id in range(1, allowed_tries+1):
 
-        except Exception as err:
+            if try_id > 1:
+                console.log(f"Making try #{try_id}/{allowed_tries} for {target_url} | need_login={need_login}")
 
-            if not isinstance(err, ProjectEulerRequest):
-                phone_api.bot_crashed(str(err))
-                ProjectEulerRequest.request_failed()
-                self.status = None
-                self.response: str | Exception | None = None
-                self.err = err
+            try:
+                # Do the request to the website, with the right cookies that emulate the account
+                r = requests.get(target_url, cookies=cookies)
+                self.status = int(r.status_code)
+                
+                if r.status_code != 200:
+                    # Phone API is sending a notifications to teyzer's phone
+                    phone_api.bot_crashed(r.status_code)
+                    ProjectEulerRequest.request_failed()
+                    self.response: str | Exception | None = None
+                    console.log(r.text)
+                    raise EulerRequestFail
+                else:
+                    ProjectEulerRequest.request_succeeded()
+                    self.response: str | Exception | None = r.text
+                    self.err = None
+                    return
+                
+            except Exception as err:
 
-            raise EulerRequestFail
+                if not isinstance(err, ProjectEulerRequest):
+                    phone_api.bot_crashed(str(err))
+                    ProjectEulerRequest.request_failed()
+                    self.status = None
+                    self.response: str | Exception | None = None
+                    self.err = err
+
+                if try_id == allowed_tries:
+                    raise EulerRequestFail
             
 
 
@@ -1555,6 +1561,12 @@ class Member:
             raise Exception("project euler data is not long enough", project_euler_data, self._username)
         
         if len(database_data) != 3:
+
+            if len(database_data) == 2: # it probably comes from someone who linked a long time ago
+                self.push_awards_to_database()
+                console.log(f"Made {self.username()} switch from old awards format to new one, not announcing anything. (2 -> 3)")
+                return ([], [], [])
+
             raise Exception("database data is not long enough", database_data, self._username)
         
         for category in range(3):
