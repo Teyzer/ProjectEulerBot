@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 import pe_api
 import pe_image
+import pe_global_objects as pe_global
 
 import datetime
 import pytz
@@ -109,17 +110,22 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
             os.remove(f)
 
     new_file_content = file_content.split("\n")
-    solves = list(map(lambda l: l.split(seperator), new_file_content))
+    
+    # Remove \r at end of lines
+    lines = list(map(lambda line: line.replace("\r", ""), new_file_content))
+
+    solves = list(map(lambda l: l.split(seperator), lines))
 
     # Remove blank lines
     solves = list(filter(lambda element: len(element) > 1, solves))
 
     # Not showing up bonus problems for now
-    solves = list(filter(lambda element: element[2][0] != "B", solves))
+    solves = list(filter(lambda element: element[0][0] != "B", solves))
 
     for i in range(len(solves)):
         solves[i][1] = str(solves[i][1])
-        solves[i] = [int(solves[i][2]), project_euler_date_converter(solves[i][1])]
+        print(solves[i])
+        solves[i] = [int(solves[i][0]), project_euler_date_converter(solves[i][-1])]
     solves = solves[::-1]
     
     return solves
@@ -152,7 +158,7 @@ def generate_individual_graph(file_content: str, username: str) -> Optional[str]
     for percentage in range(frame_count + 1):
         
         current_timestamp = starting_timestamp + difference * percentage / frame_count
-        last_pb = len(list(filter(lambda el: float(el[2]) < current_timestamp, problems)))
+        last_pb = len(list(filter(lambda el: pe_global.pe_unix_from_time(el[2]) < current_timestamp, problems)))
         
         pe_image.image_for_timestamp_user_solve(
             solves, current_timestamp, username, percentage, 

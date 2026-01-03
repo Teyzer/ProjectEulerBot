@@ -70,3 +70,7 @@ def pe_discord_api_setup(channels: dict):
     SPECIAL_CHANNELS_TO_ANNOUNCE = channels["award_channel"]
     SMALL_ANNOUNCEMENTS_CHANNEL = channels["small_channel"]
     THREADS_CHANNEL = channels["thread_channel"]
+
+
+def pe_unix_from_time(s: str):
+    return int(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp())

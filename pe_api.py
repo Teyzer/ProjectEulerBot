@@ -8,6 +8,7 @@ import json
 import time
 
 import pe_database
+import pe_global_objects as pe_global
 
 import phone_api
 
@@ -172,7 +173,10 @@ class Problem:
         api_data = ProjectEulerRequest("https://projecteuler.net/minimal=problems", False)
         
         rows = api_data.response.split("\n")
-        timestamps = [int(x.split("##")[2]) for x in rows[1:-1]]
+        timestamps = [
+            pe_global.pe_unix_from_time(x.split("##")[2])
+            for x in rows[1:-1]
+        ]
         
         ux_data = ProjectEulerRequest("https://projecteuler.net/progress", True)
         soup = BeautifulSoup(ux_data.response, 'html.parser')
@@ -183,7 +187,7 @@ class Problem:
         
         for element in div:
             
-            properties = list(map(
+            properties = list(map(  
                 lambda x: x.text, 
                 element.find_all("div")
             ))
@@ -955,9 +959,9 @@ class Member:
         csv_content = self.solve_csv_untouched()        
         
         lines = list(filter(lambda x: x.strip() != '', csv_content.split("\n")))
-        problems_ids = set(map(lambda x: x.split(',')[2], lines))
+        problems_ids = set(map(lambda x: x.split(',')[0], lines))
         
-        line_format = '0,01 Jan 70 (01:00),{problem_id},"random title"'
+        line_format = '{problem_id},"random title",01 Jan 70 (01:00)'
         
         for solve in self.solved_problems():
             if str(solve) not in problems_ids:
