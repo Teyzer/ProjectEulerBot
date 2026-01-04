@@ -68,59 +68,68 @@ def solve(image_name: str, human: bool = False):
 
 
 def try_fetching_cookies(human: bool = False):
-
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
 
     if 'web_utils' not in os.listdir('.'):
         os.mkdir('web_utils')
 
-    # GET THE CAPTCHA
-
     service = Service(executable_path='/usr/local/bin/geckodriver')
-
     options = webdriver.FirefoxOptions()
     options.add_argument("-headless")
 
-    driver = webdriver.Firefox(service=service, options=options)
-    driver.set_window_size(1080, 720)
+    driver = None
+    try:
+        driver = webdriver.Firefox(service=service, options=options)
+        
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(10)
+        driver.set_window_size(1080, 720)
 
-    driver.get(url)
+        driver.get(url)
 
-    WebDriverWait(driver, 2)
+        captcha = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "captcha_image"))
+        )
+        get_captcha(driver, captcha, filename)
 
-    captcha = driver.find_element(By.ID,"captcha_image")
-    get_captcha(driver, captcha, filename)
+        captcha_result = solve(filename, human)
+        console.log(f"[-] Tried to guess {captcha_result} as Captcha")
 
-    captcha_result = solve(filename, human)
-    console.log(f"[-] Tried to guess {captcha_result} as Captcha")
+        driver.find_element("xpath", 
+            "//input[@id='username' and @name='username']"
+        ).send_keys("EulerCommunity")
 
-    # FILL THE FORM
+        driver.find_element("xpath", 
+            "//input[@id='password' and @name='password']"
+        ).send_keys("IncredibleBoy")
 
-    driver.find_element("xpath", 
-        "//input[@id='username' and @name='username']"
-    ).send_keys("EulerCommunity")
+        driver.find_element("xpath", 
+            "//input[@id='captcha' and @name='captcha']"
+        ).send_keys(captcha_result)
 
-    driver.find_element("xpath", 
-        "//input[@id='password' and @name='password']"
-    ).send_keys("IncredibleBoy")
+        driver.find_element("xpath", 
+            "//input[@id='remember_me' and @name='remember_me']"
+        ).click()
 
-    driver.find_element("xpath", 
-        "//input[@id='captcha' and @name='captcha']"
-    ).send_keys(captcha_result)
+        driver.find_element("xpath", 
+            "//input[@name='sign_in' and @type='submit']"
+        ).click()   
 
-    driver.find_element("xpath", 
-        "//input[@id='remember_me' and @name='remember_me']"
-    ).click()
+        cookies = driver.get_cookies()
+        return cookies
 
-    driver.find_element("xpath", 
-        "//input[@name='sign_in' and @type='submit']"
-    ).click()   
-
-    cookies = driver.get_cookies()
-
-    driver.quit()
-    return cookies
+    except Exception as e:
+        console.log(f"[!] Error during browser automation: {e}")
+        traceback.print_exc()
+        return []
+    
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception as e:
+                console.log(f"[!] Error closing driver: {e}")
 
 
 def refresh_tokens():
