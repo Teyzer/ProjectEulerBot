@@ -14,6 +14,7 @@ import phone_api
 
 from rich.console import Console
 from rich import inspect
+from pe_global_objects import log
 
 from typing import List, Dict, Optional, Any, Tuple, Union
 
@@ -41,7 +42,7 @@ def pe_api_setup(cookies, account) -> None:
 
     account_name = account["username"]
 
-    console.log(f"[-] Added credential for account {account_name}")
+    log.info(f"[-] Added credential for account {account_name}")
     
 
 def now_unix() -> int:
@@ -96,7 +97,7 @@ class ProjectEulerRequest:
         for try_id in range(1, allowed_tries+1):
 
             if try_id > 1:
-                console.log(f"Making try #{try_id}/{allowed_tries} for {target_url} | need_login={need_login}")
+                log.info(f"Making try #{try_id}/{allowed_tries} for {target_url} | need_login={need_login}")
 
             try:
                 # Do the request to the website, with the right cookies that emulate the account
@@ -108,7 +109,7 @@ class ProjectEulerRequest:
                     phone_api.bot_crashed(r.status_code)
                     ProjectEulerRequest.request_failed()
                     self.response: str | Exception | None = None
-                    console.log(r.text)
+                    log.error(r.text)
                     raise EulerRequestFail
                 else:
                     ProjectEulerRequest.request_succeeded()
@@ -1568,7 +1569,7 @@ class Member:
 
             if len(database_data) == 2: # it probably comes from someone who linked a long time ago
                 self.push_awards_to_database()
-                console.log(f"Made {self.username()} switch from old awards format to new one, not announcing anything. (2 -> 3)")
+                log.info(f"Made {self.username()} switch from old awards format to new one, not announcing anything. (2 -> 3)")
                 return ([], [], [])
 
             raise Exception("database data is not long enough", database_data, self._username)
@@ -1928,13 +1929,13 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
         if member.have_solves_changed():
             
             new_solves = member.get_new_solves()
-            console.log(f"New solve(s) for {member.username()}: {[s.problem_id() for s in new_solves]}")
+            log.info(f"New solve(s) for {member.username()}: {[s.problem_id() for s in new_solves]}")
             member.push_basics_to_database()
 
             new_awards = None
             if member.have_awards_changed():
                 new_awards = member.get_new_awards()
-                console.log(f"New award(s) for {member.username()}: {new_awards}")
+                log.info(f"New award(s) for {member.username()}: {new_awards}")
                 member.push_awards_to_database()
             
             new_changes.append({"member": member, "solves": new_solves, "awards": new_awards})
@@ -1942,8 +1943,8 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
         else:
             skipped_member_count += 1
             
-    console.log(f"Skipped {skipped_member_count} members")
-    console.log(new_changes)
+    log.info(f"Skipped {skipped_member_count} members")
+    log.info(new_changes)
     return new_changes
 
 
@@ -2243,7 +2244,7 @@ def update_fastest_solves(starting_problem: int = 277):
     with open(data_filename, "r") as f:
         whole_data = json.load(f)
 
-    console.log("Refreshing data for solvers.")
+    log.info("Refreshing data for solvers.")
 
     wait_time = 1
 
@@ -2252,7 +2253,7 @@ def update_fastest_solves(starting_problem: int = 277):
         data = get_fastest_solvers(problem)
         whole_data[problem] = data
         
-        console.log(problem)
+        log.info(problem)
         time.sleep(wait_time)
 
     with open(data_filename, "w") as f:

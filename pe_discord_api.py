@@ -32,6 +32,7 @@ import traceback
 
 from rich.console import Console
 from rich import inspect
+from pe_global_objects import log
 
 import sympy
 from typing import Dict, List, Tuple, Any, Optional
@@ -58,22 +59,22 @@ async def major_update() -> bool:
         session_alive = pe_session.is_connected()
 
     if not website_active:
-        console.log("Skipped major_update because website does not respond.")
+        log.error("Skipped major_update because website does not respond.")
         await async_set_bot_status(3, "Website died")
         return False
 
     if not session_alive:
-        console.log("Skipped major_update because there is no active session.")
+        log.error("Skipped major_update because there is no active session.")
         await async_set_bot_status(3, "Session died")
         return False
 
     # In the console
-    console.log(f"Starting repeat #{pe_global.REPEATS_SINCE_START}", end="| ")
+    log.info(f"Starting repeat #{pe_global.REPEATS_SINCE_START}")
 
     try:
         await announce_rss()
     except Exception as exc:
-        console.log(exc)
+        log.exception(exc)
 
     # Getting the data required
     try:
@@ -81,6 +82,7 @@ async def major_update() -> bool:
     
     except Exception as exc:
         console.log(exc, traceback.format_exc())
+        log.exception(exc)
         await async_set_bot_status(3, "Unknown error")
         return False
 
@@ -92,11 +94,11 @@ async def major_update() -> bool:
     # Not important, you can skip this explanation
     # Only goal is to keep each profile in the database with a solve list that is the length of the number of problems
     if pe_api.last_problem() != pe_api.last_problem_database():
-        console.log("[(-) New problem detected, adding one zero to everyone]")
+        log.info("[(-) New problem detected, adding one zero to everyone]")
         m: pe_api.Member
         for m in pe_api.Member.members():
             m.push_basics_to_database()
-        console.log("[(+) Updated all members in the database]")
+        log.info("[(+) Updated all members in the database]")
     
     # event = pe_events.eventSoPE()
     # event = pe_events.eventMonthly1()
@@ -186,7 +188,7 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(pe_global.ORANGE_CIRCLE)))
     
     # For debugging
-    console.log(f'Login made as {bot.user}')
+    log.info(f'Login made as {bot.user}')
     await tester()
 
     need_to_stop = False
@@ -1439,7 +1441,6 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
     async for thread_object in channel.archived_threads(private=True, limit=None):
         threads.append(thread_object)
 
-    # console.log(threads)
     return threads
 
 
@@ -1569,7 +1570,7 @@ async def announce_rss():
                 f"https://projecteuler.net/problem={problem_id}", "Have fun!", 1440
             )
         except ValueError as exc:
-            console.log(exc)
+            log.exception(exc)
 
 
 

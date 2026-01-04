@@ -7,6 +7,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 
+import faulthandler
+
 from anticaptchaofficial.imagecaptcha import *
 
 from PIL import Image
@@ -16,7 +18,7 @@ import pe_api
 import phone_api
 
 from rich.console import Console
-
+from pe_global_objects import log
 import os
 
 
@@ -94,7 +96,7 @@ def try_fetching_cookies(human: bool = False):
         get_captcha(driver, captcha, filename)
 
         captcha_result = solve(filename, human)
-        console.log(f"[-] Tried to guess {captcha_result} as Captcha")
+        log.info(f"[-] Tried to guess {captcha_result} as Captcha")
 
         driver.find_element("xpath", 
             "//input[@id='username' and @name='username']"
@@ -120,8 +122,9 @@ def try_fetching_cookies(human: bool = False):
         return cookies
 
     except Exception as e:
-        console.log(f"[!] Error during browser automation: {e}")
-        traceback.print_exc()
+        # logging.error(f"[!] Error during browser automation: {e}")
+        # traceback.print_exc()
+        log.exception(e)
         return []
     
     finally:
@@ -129,10 +132,13 @@ def try_fetching_cookies(human: bool = False):
             try:
                 driver.quit()
             except Exception as e:
-                console.log(f"[!] Error closing driver: {e}")
+                log.exception(e)
+                # console.log(f"[!] Error closing driver: {e}")
 
 
 def refresh_tokens():
+
+    faulthandler.enable()
 
     human = False
 
@@ -146,11 +152,11 @@ def refresh_tokens():
         cookies = try_fetching_cookies(human)
         current_tries += 1
 
-        console.log(f"[-] Making try #{current_tries} to refresh cookies")
+        log.info(f"Making try #{current_tries} to refresh cookies")
 
         for cookie in cookies:
 
-            console.log(cookie["name"], cookie["value"])
+            log.info(f'{cookie["name"]}, {cookie["value"]}')
             if cookie["name"] == PHPSESS_NAME:
                 values[PHPSESS_NAME] = cookie["value"]
 
@@ -160,10 +166,10 @@ def refresh_tokens():
     
     if values["keep_alive"] is not None:
         phone_api.bot_info("Token refreshed automatically")
-        console.log("[+] Token refreshed automatically", values[PHPSESS_NAME])
+        log.info(f"Token refreshed automatically {values[PHPSESS_NAME]}")
     else:
         phone_api.bot_crashed("Failed to refresh token")
-        console.log("[*] Failed to refresh token")
+        log.error("Failed to refresh token")
 
     with open(PROFILE_NAME, "r") as f:
         data = json.load(f)
@@ -185,6 +191,7 @@ def is_connected() -> bool:
         pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/archives", True)
     except TooManyRedirects as exc:
         pe_api.console.log(exc, traceback.format_exc())
+        log.exception(exc)
         return False
     except pe_api.EulerRequestFail:
         return False

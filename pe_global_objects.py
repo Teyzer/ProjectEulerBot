@@ -2,6 +2,9 @@ import discord
 import datetime 
 import pytz
 
+import logging
+from rich.logging import RichHandler
+
 
 TEST_SERVER = 943488228084813864
 PROJECT_EULER_SERVER = 903915097804652595
@@ -62,6 +65,15 @@ THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
 PROBLEM_LINK = "[Jump to problem {0}](<https://projecteuler.net/problem={0}>)"
 
 
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[RichHandler()],
+    format="%(message)s",
+)
+
+log = logging.getLogger("app")
+
+
 def pe_discord_api_setup(channels: dict):
 
     global CHANNELS_TO_ANNOUNCE, SPECIAL_CHANNELS_TO_ANNOUNCE, SMALL_ANNOUNCEMENTS_CHANNEL, THREADS_CHANNEL
@@ -74,3 +86,9 @@ def pe_discord_api_setup(channels: dict):
 
 def pe_unix_from_time(s: str):
     return int(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp())
+
+
+
+
+
+
