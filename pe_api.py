@@ -101,7 +101,7 @@ class ProjectEulerRequest:
 
             try:
                 # Do the request to the website, with the right cookies that emulate the account
-                r = requests.get(target_url, cookies=cookies)
+                r = requests.get(target_url, cookies=cookies, timeout=30)
                 self.status = int(r.status_code)
                 
                 if r.status_code != 200:
