@@ -140,7 +140,7 @@ async def major_update() -> bool:
                 optional_bee = " ⚡" if problem.problem_id() == len(problems) else ""
                 optional_emojis = optional_bee
                 
-                sending_message = sending_message + optional_emojis + " " + pe_global.PROBLEM_LINK.format(problem.problem_id())
+                sending_message = sending_message + optional_emojis
                 await channel.send(sending_message, allowed_mentions = discord.AllowedMentions(users=False))
             
         if member.solve_count() % 25 == 0:

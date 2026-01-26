@@ -57,12 +57,10 @@ AWARDING_SENTENCES = [
     "{0} is the first solver for problem #{1}: '{2}'! Congratulations! " + FIRST_PLACE_EMOJI,
     "{0} is the second solver for problem #{1}: '{2}'! Congratulations! " + SECOND_PLACE_EMOJI,
     "{0} is the third solver for problem #{1}: '{2}'! Congratulations! " + THIRD_PLACE_EMOJI,
-    "{0} solved the problem #{1}: '{2}' which has been solved by {3} people, well done!"
+    "{0} solved the problem [#{1}: '{2}'](<https://projecteuler.net/problem={1}>) which has been solved by {3} people, well done!"
 ]
 
 THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
-
-PROBLEM_LINK = "[Jump to problem {0}](<https://projecteuler.net/problem={0}>)"
 
 
 logging.basicConfig(
