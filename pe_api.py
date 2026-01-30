@@ -7,6 +7,8 @@ import locale
 import json
 import time
 
+import random
+
 import pe_database
 import pe_global_objects as pe_global
 
@@ -163,7 +165,7 @@ class Problem:
 
 
     @staticmethod
-    def fetch_problems() -> None:
+    def __fetch_problems() -> None:
         
         """
         Updates the global array `PROBLEMS`, which contains every problem
@@ -181,7 +183,7 @@ class Problem:
         
         ux_data = ProjectEulerRequest("https://projecteuler.net/progress", True)
         soup = BeautifulSoup(ux_data.response, 'html.parser')
-        div = soup.find_all("span", class_='tooltiptext_narrow')
+        div = soup.find("div", id="problems_solved_section").find_all("span", class_='tooltiptext_narrow')
         
         if len(div) == 0:
             raise Exception("data could not be fetched from the website, could not update problem fields")
@@ -207,7 +209,7 @@ class Problem:
                 difficulty = None
                 title = properties[2].replace("\"", "")
             elif len(properties) == 4:
-                difficulty = int(properties[2].split(": ")[1].split("%")[0])
+                difficulty = int(properties[2].split(": ")[1])
                 title = properties[3].replace("\"", "")
             else:
                 raise Exception("Properties did not have 3 or 4 fields, resulted in title not being defined")
@@ -220,7 +222,7 @@ class Problem:
 
 
     @staticmethod
-    def last_update(problem_id: int) -> Optional[int]:
+    def __last_update(problem_id: int) -> Optional[int]:
         
         if len(Problem._all_problems) < problem_id:
             return None
@@ -229,12 +231,15 @@ class Problem:
     
     
     @staticmethod 
-    def oldest_last_update() -> Optional[int]:
+    def __oldest_last_update(precise = False) -> Optional[int]:
         
         if len(Problem._all_problems) == 0:
             return None
         
         min_timestamp = now_unix()
+
+        if not precise:
+            return random.choice(Problem._all_problems)["fetched_at"]
 
         for element in Problem._all_problems:
             fetched_at = element["fetched_at"]
@@ -244,13 +249,19 @@ class Problem:
         
         
     @staticmethod
-    def should_be_updated() -> bool:
+    def __should_be_updated() -> bool:
         
-        latest = Problem.oldest_last_update()
+        latest = Problem.__oldest_last_update()
         if latest is None:
             return True
         
         return not is_recent_unix(latest)        
+    
+
+    @staticmethod
+    def __ensure_updated() -> None:
+        if Problem.__should_be_updated():
+            Problem.__fetch_problems()
     
 
     @staticmethod
@@ -260,11 +271,25 @@ class Problem:
         Returns a list containing all problems. L[i - 1] is thus problem i. Each
         element is a Problem instance.
         """
-        
-        if Problem.should_be_updated():
-            Problem.fetch_problems()
+        Problem.__ensure_updated()
             
         return [element["problem"] for element in Problem._all_problems]
+    
+
+    @staticmethod
+    def last_problem() -> int:
+        """
+        returns the id of the last problem
+        """
+        return len(Problem._all_problems)
+    
+
+    @staticmethod
+    def difficulties_count() -> int:
+        """
+        returns the number of difficulties currently available in the archives
+        """
+        return (Problem.last_problem() - 1 - 10) // 25 
         
     
     def problem_id(self) -> int:
@@ -289,9 +314,9 @@ class Problem:
         if self._problem_id is None:
             raise ValueError("_problem_id field is None")
         
-        latest = Problem.last_update(self._problem_id)
+        latest = Problem.__last_update(self._problem_id)
         if latest is None or not is_recent_unix(latest):
-            Problem.fetch_problems()
+            Problem.__fetch_problems()
             
         for field in ["_name", "_unix_publication", "_solves", "_difficulty_rating"]:    
             self.__dict__[field] = Problem._all_problems[self._problem_id - 1]["problem"].__dict__[field]
@@ -376,12 +401,19 @@ class Problem:
             self.update_from_project_euler()
             
         return self._difficulty_rating
+    
+
+    def difficulty_relative(self) -> Optional[int]:
+        """
+        Returns the relative difficulty of a problem, that is, the difficulty over the number of problems in the archive, times 
+        """
+        return (100 * self.difficulty()) // Problem.difficulties_count()
             
 
     def guess_difficulty_detailed(self, neighbors_count: int = 5) -> Tuple[int, List['Problem']]:
         
         """
-        returns the difficulty guessed by the bot with a k-neighbor algorithm, along 
+        returns the difficulty level guessed by the bot with a k-neighbor algorithm, along 
         with its k nearest neighbors
         """
         
@@ -434,7 +466,7 @@ class Problem:
 
     def guess_difficulty(self) -> int:
         """
-        returns the difficulty guessed by the bot with a k-neighbor algorithm
+        returns the difficulty level guessed by the bot with a k-neighbor algorithm
         """
         return self.guess_difficulty_detailed()[0]
         
@@ -2263,6 +2295,7 @@ def update_fastest_solves(starting_problem: int = 277):
 
 
 if __name__ == "__main__":
-    pass
+
+    Problem.__ensure_updated()
     
     

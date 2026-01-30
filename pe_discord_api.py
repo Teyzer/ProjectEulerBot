@@ -484,7 +484,7 @@ async def on_message(message):
             data = pe_api.Problem.complete_list()
             problem_object: pe_api.Problem = data[problem_id - 1]
             problem_embed = discord.Embed(description=
-                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' ({problem_object.difficulty()}%/{problem_object.solves()})"
+                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' (Level {problem_object.difficulty_relative()}/{problem_object.solves()})"
             )
         except Exception as _:
             problem_embed = discord.Embed(description=
@@ -1269,11 +1269,13 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     problem_obj = pe_api.Problem(problem_id)
     difficulty, nearests = problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
 
-    answer_text = f"I expect problem #{problem_id} to have difficulty {difficulty}% based on its {neighbors} nearest neighbors:"
+    relative_difficulty = (100 * difficulty) // pe_api.Problem.difficulties_count() 
+
+    answer_text = f"I expect problem #{problem_id} to have difficulty level {difficulty}/{pe_api.Problem.difficulties_count()} or {relative_difficulty}% based on its {neighbors} nearest neighbors:"
     
     answer_text += "```"
     for problem in nearests:
-        answer_text += f"{problem.problem_id()}: {problem.difficulty()}% ({problem.name()})\n"
+        answer_text += f"{problem.problem_id()}: {problem.difficulty()} ({problem.name()})\n"
     answer_text += "```"
 
     return await ctx.respond(answer_text)
@@ -1295,8 +1297,18 @@ async def command_guess_difficulty_all(ctx, neighbors: int = 5):
     answer_text += "```"
 
     for problem_id in range(last_problem - 9, last_problem + 1):
-        problem_obj = pe_api.Problem(problem_id)
-        answer_text += f"{problem_obj.problem_id()}: {problem_obj.guess_difficulty()}% ({problem_obj.name()})\n"
+        
+        problem_obj = pe_api.Problem(problem_id)        
+        guessed_difficulty = problem_obj.guess_difficulty()
+        relative_guessed_difficulty = (100 * guessed_difficulty) // pe_api.Problem.difficulties_count()
+
+        # This block is only used to add a zero before numbers being only one digit, to make things align more nicely.
+        displayed_guessed_difficulty = str(guessed_difficulty)
+        if len(displayed_guessed_difficulty) == 1: displayed_guessed_difficulty = "0" + displayed_guessed_difficulty
+        displayed_relative_guessed_difficulty = str(relative_guessed_difficulty)
+        if len(displayed_relative_guessed_difficulty) == 1: displayed_relative_guessed_difficulty = "0" + displayed_relative_guessed_difficulty
+
+        answer_text += f"{problem_obj.problem_id()}: {displayed_guessed_difficulty}/{pe_api.Problem.difficulties_count()} or {displayed_relative_guessed_difficulty}% ({problem_obj.name()})\n"
 
     answer_text += "```"
     return await ctx.respond(answer_text)
@@ -1484,7 +1496,12 @@ async def announce_messages(messages: List[Tuple[str, int | str]]):
     for message, channel_description in messages:
         channel_id = possible_channels[channel_description] if channel_description in possible_channels else channel_description
         channel = bot.get_channel(channel_id)
-        await channel.send(message, allowed_mentions = discord.AllowedMentions(users=False))
+        
+        if len(message) < 3000:
+            await channel.send(message, allowed_mentions = discord.AllowedMentions(users=False))
+        else:
+            for sub_message in message.split("\n\n"):
+                await channel.send(sub_message + "\n", allowed_mentions = discord.AllowedMentions(users=False))
 
 
 async def create_discord_event(guild_id: int, start_unix: int, title: str,
