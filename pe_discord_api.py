@@ -959,85 +959,85 @@ async def bot_is_down(ctx, details: str):
     return await ctx.respond("Your alert has been sent successfully, sorry for the downtime again!")
 
 
-@bot.slash_command(name="awards-requirements", description="Gives the problems you need to solve left to get a specific award")
-@option("award", description="The award you want to get", choices=[
-    "As Easy As Pi",
-    "Unlucky Squares",
-    "Prime Obsession",
-    "Trinary Triumph",
-    "Fibonacci Fever",
-    "Triangle Trophy",
-    "Lucky Luke"
-])
-@option("member", description="Which member", default = None)
-@pe_decorators.command
-async def command_awards_requirements(ctx, award: str, member: discord.User = None):
+# @bot.slash_command(name="awards-requirements", description="Gives the problems you need to solve left to get a specific award")
+# @option("award", description="The award you want to get", choices=[
+#     "As Easy As Pi",
+#     "Unlucky Squares",
+#     "Prime Obsession",
+#     "Trinary Triumph",
+#     "Fibonacci Fever",
+#     "Triangle Trophy",
+#     "Lucky Luke"
+# ])
+# @option("member", description="Which member", default = None)
+# @pe_decorators.command
+# async def command_awards_requirements(ctx, award: str, member: discord.User = None):
 
-    await ctx.defer()
+#     await ctx.defer()
 
-    if award is None:
-        return await ctx.respond("Please specify an award!")
+#     if award is None:
+#         return await ctx.respond("Please specify an award!")
     
-    discord_id = ctx.author.id
-    if member is not None:
-        discord_id = member.id
+#     discord_id = ctx.author.id
+#     if member is not None:
+#         discord_id = member.id
 
-    m = pe_api.Member(_discord_id = discord_id)
+#     m = pe_api.Member(_discord_id = discord_id)
 
-    if m.private() and m.discord_id() != str(ctx.author.id):
-        return await ctx.respond("This user has a private profile.")
+#     if m.private() and m.discord_id() != str(ctx.author.id):
+#         return await ctx.respond("This user has a private profile.")
     
-    solve_list = m.solved_problems()
-    last_pb = len(m.solve_array())
+#     solve_list = m.solved_problems()
+#     last_pb = len(m.solve_array())
 
-    valid_problems = []
-    solves_needed = 0
+#     valid_problems = []
+#     solves_needed = 0
 
-    if award == "As Easy As Pi":
-        valid_problems = sorted([3, 14, 15, 92, 65, 35, 89, 79, 32, 38, 45])
-        solves_needed = len(valid_problems)
+#     if award == "As Easy As Pi":
+#         valid_problems = sorted([3, 14, 15, 92, 65, 35, 89, 79, 32, 38, 45])
+#         solves_needed = len(valid_problems)
     
-    if award == "Unlucky Squares":
-        i = 1
-        while i*i <= last_pb:
-            valid_problems.append(i*i)
-            i += 1
-        solves_needed = 13
+#     if award == "Unlucky Squares":
+#         i = 1
+#         while i*i <= last_pb:
+#             valid_problems.append(i*i)
+#             i += 1
+#         solves_needed = 13
     
-    if award == "Prime Obsession":
-        valid_problems = list(sympy.primerange(0, len(solve_list)))
-        solves_needed = 50
+#     if award == "Prime Obsession":
+#         valid_problems = list(sympy.primerange(0, len(solve_list)))
+#         solves_needed = 50
 
-    if award == "Trinary Triumph":
-        valid_problems = [1, 3, 9, 27, 81, 243, 729]
-        solves_needed = len(valid_problems)
+#     if award == "Trinary Triumph":
+#         valid_problems = [1, 3, 9, 27, 81, 243, 729]
+#         solves_needed = len(valid_problems)
 
-    if award == "Fibonacci Fever":
-        valid_problems = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]
-        solves_needed = len(valid_problems)
+#     if award == "Fibonacci Fever":
+#         valid_problems = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]
+#         solves_needed = len(valid_problems)
 
-    if award == "Triangle Trophy":
-        valid_problems = list([i * (i + 1) // 2 for i in range(1, 25+1)])
-        solves_needed = len(valid_problems)
+#     if award == "Triangle Trophy":
+#         valid_problems = list([i * (i + 1) // 2 for i in range(1, 25+1)])
+#         solves_needed = len(valid_problems)
     
-    if award == "Lucky Luke":
-        # Code from https://oeis.org/A000959
-        valid_problems = list(range(1, len(solve_list) + 1, 2))
-        j = 1
-        while j <= len(valid_problems) - 1 and valid_problems[j] <= len(valid_problems):
-            del valid_problems[valid_problems[j]-1::valid_problems[j]]
-            j += 1
+#     if award == "Lucky Luke":
+#         # Code from https://oeis.org/A000959
+#         valid_problems = list(range(1, len(solve_list) + 1, 2))
+#         j = 1
+#         while j <= len(valid_problems) - 1 and valid_problems[j] <= len(valid_problems):
+#             del valid_problems[valid_problems[j]-1::valid_problems[j]]
+#             j += 1
 
-    solve_list = set(solve_list)
-    already_solved = [k for k in valid_problems if k in solve_list]
-    not_solved = [k for k in valid_problems if not (k in solve_list)]
+#     solve_list = set(solve_list)
+#     already_solved = [k for k in valid_problems if k in solve_list]
+#     not_solved = [k for k in valid_problems if not (k in solve_list)]
 
-    left_to_solve = solves_needed - len(already_solved)
-    if left_to_solve <= 0:
-        return await ctx.respond("You already have the award!")
+#     left_to_solve = solves_needed - len(already_solved)
+#     if left_to_solve <= 0:
+#         return await ctx.respond("You already have the award!")
     
-    text_list = "```" + ", ".join(list(map(str, not_solved))) + "```"
-    return await ctx.respond(f"You need to solve {left_to_solve} problems among the following list to get the '{award}' award: {text_list}")
+#     text_list = "```" + ", ".join(list(map(str, not_solved))) + "```"
+#     return await ctx.respond(f"You need to solve {left_to_solve} problems among the following list to get the '{award}' award: {text_list}")
     
     
 
