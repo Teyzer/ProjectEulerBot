@@ -484,7 +484,7 @@ async def on_message(message):
             data = pe_api.Problem.complete_list()
             problem_object: pe_api.Problem = data[problem_id - 1]
             problem_embed = discord.Embed(description=
-                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' (Level {problem_object.difficulty_relative()}/{problem_object.solves()})"
+                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' (Level {problem_object.difficulty()}/{problem_object.solves()})"
             )
         except Exception as _:
             problem_embed = discord.Embed(description=
