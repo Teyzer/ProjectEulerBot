@@ -647,9 +647,10 @@ async def command_thread(ctx, problem: int):
     await ctx.defer()
 
     try:
-        last_pb = pe_api.last_problem()
+        last_pb = pe_api.Problem.last_problem()
     except Exception as _:
         last_pb = pe_api.last_problem_database()
+    console.log(pe_api.Problem.last_problem())
     
     # Just to ensure there's no unused thread
     if problem > last_pb:
@@ -1302,13 +1303,8 @@ async def command_guess_difficulty_all(ctx, neighbors: int = 5):
         guessed_difficulty = problem_obj.guess_difficulty()
         relative_guessed_difficulty = (100 * guessed_difficulty) // pe_api.Problem.difficulties_count()
 
-        # This block is only used to add a zero before numbers being only one digit, to make things align more nicely.
-        displayed_guessed_difficulty = str(guessed_difficulty)
-        if len(displayed_guessed_difficulty) == 1: displayed_guessed_difficulty = "0" + displayed_guessed_difficulty
-        displayed_relative_guessed_difficulty = str(relative_guessed_difficulty)
-        if len(displayed_relative_guessed_difficulty) == 1: displayed_relative_guessed_difficulty = "0" + displayed_relative_guessed_difficulty
-
-        answer_text += f"{problem_obj.problem_id()}: {displayed_guessed_difficulty}/{pe_api.Problem.difficulties_count()} or {displayed_relative_guessed_difficulty}% ({problem_obj.name()})\n"
+        digit_len = len(str(pe_api.Problem.difficulties_count()))
+        answer_text += f"{problem_obj.problem_id()}: {guessed_difficulty:{digit_len}}/{pe_api.Problem.difficulties_count()} or {relative_guessed_difficulty:3}% ({problem_obj.name()})\n"
 
     answer_text += "```"
     return await ctx.respond(answer_text)

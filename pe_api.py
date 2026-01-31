@@ -281,6 +281,8 @@ class Problem:
         """
         returns the id of the last problem
         """
+        Problem.__ensure_updated()
+
         return len(Problem._all_problems)
     
 
