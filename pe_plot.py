@@ -124,7 +124,7 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
 
     for i in range(len(solves)):
         solves[i][1] = str(solves[i][1])
-        print(solves[i])
+        # print(solves[i])
         solves[i] = [int(solves[i][0]), project_euler_date_converter(solves[i][-1])]
     solves = solves[::-1]
     

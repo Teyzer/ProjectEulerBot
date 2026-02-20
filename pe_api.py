@@ -18,6 +18,8 @@ from rich.console import Console
 from rich import inspect
 from pe_global_objects import log
 
+import traceback
+
 from typing import List, Dict, Optional, Any, Tuple, Union
 
 
@@ -549,6 +551,14 @@ class Solve:
         return self._unixtime
 
 
+    def __str__(self):
+        return str(self.problem_id())
+    
+
+    def __repr__(self):
+        return self.__str__()
+
+
 
 class Award:
     
@@ -646,13 +656,17 @@ class Member:
             filter(lambda x: x in "01", string_of_01)
         ]
         
+        solve_array = to_solve_bool_array(target_member[5])
+        solve_count = sum(map(int, solve_array))
+
         self._nickname = undef_func(target_member[1], False)
         self._country = undef_func(target_member[2], False)
         self._language = undef_func(target_member[3], False)
-        self._pe_solve_count = undef_func(target_member[4], True)
-        self._level = undef_func(target_member[5], True)
-        self._pe_solve_array = to_solve_bool_array(target_member[6])
-        self._pe_bonus_array = to_solve_bool_array(target_member[7])
+        self._rank = undef_func(target_member[4], False)
+        self._pe_solve_count = solve_count
+        self._level = solve_count // 25
+        self._pe_solve_array = solve_array
+        self._pe_bonus_array = to_solve_bool_array(target_member[6])
 
     
     def update_from_award_list(self) -> None:
@@ -1798,7 +1812,10 @@ class Member:
             
             try:
                 current.update_from_friend_list(project_euler_data)
-            except Exception as _:
+            except Exception as e:
+                if str(e) == "Member not found in friend list":
+                    continue
+                log.warning(f"Exception: {traceback.format_exc()}")
                 continue
 
             if username in database_usernames:
@@ -1954,7 +1971,7 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
     
     members: List[Member] = Member.members()
     skipped_member_count = 0
-    
+
     new_changes = []
 
     
