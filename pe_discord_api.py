@@ -1361,6 +1361,46 @@ async def command_challenge_accept(ctx, challenge_id: int):
     return await ctx.respond(f"You have accepted the challenge. You have {challenge.hours_duration} hours to complete it!")
 
 
+@bot.slash_command(name="problemsfrom")
+@option("Author", description="The member who wrote the problems")
+@option("Member", description="The member that you want to see the stats of regarding those problems", default=None)
+@pe_decorators.command
+async def problemsfrom_command(ctx, author: discord.User, user: discord.User = None):
+
+    await ctx.defer()
+
+    author_id = str(author.id)
+
+    member_id = ctx.author.id
+    if user is not None:
+        member_id = user.id
+
+    if author_id not in pe_global.AUTHORS:
+        return await ctx.respond("The published problems from this user are not knwon.")
+
+    member = pe_api.Member(_discord_id=member_id)
+    solves = list(map(lambda n: (n, member.has_solved(n)), pe_global.AUTHORS[author_id]))
+
+    solved = []
+    not_solved = []
+    for n, s in solves:
+        if s:
+            solved.append(n)
+        else:
+            not_solved.append(n)
+
+    percentage = round(100 * len(solved) / (len(solved) + len(not_solved)))
+
+    author_pe = pe_api.Member(_discord_id=author.id)
+
+    return await ctx.respond(f"`{member.username_option()}` has solved {percentage}% of `{author_pe.username_option()}`'s problems. (Solved {solved}, missing {not_solved}).")
+
+
+
+
+
+
+
 
 """
 COMMANDS FOR EVENTS ONLY

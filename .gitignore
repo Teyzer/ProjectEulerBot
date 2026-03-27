@@ -146,3 +146,5 @@ images_saves/
 .idea
 scripts/
 web_utils/*.png
+compute.py
+tmp.py

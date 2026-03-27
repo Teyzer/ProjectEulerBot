@@ -62,6 +62,11 @@ AWARDING_SENTENCES = [
 
 THREAD_DEFAULT_NAME_FORMAT = "Problem #{0} discussion"
 
+AUTHORS = {
+    '124347516878585858': [561, 580, 599, 648, 670, 671, 821, 989],
+    '373553739531026432': [962],
+}
+
 
 logging.basicConfig(
     level=logging.INFO,

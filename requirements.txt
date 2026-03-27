@@ -31,7 +31,7 @@ plotly==5.24.1
 pluggy==1.5.0
 propcache==0.2.1
 py==1.11.0
-py-cord==2.6.1
+py-cord==2.7.0rc2
 pycord==0.1.1
 Pygments==2.18.0
 pyparsing==3.2.0
