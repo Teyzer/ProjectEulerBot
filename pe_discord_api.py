@@ -1376,7 +1376,7 @@ async def problemsfrom_command(ctx, author: discord.User, user: discord.User = N
         member_id = user.id
 
     if author_id not in pe_global.AUTHORS:
-        return await ctx.respond("The published problems from this user are not knwon.")
+        return await ctx.respond("The published problems from this user are not known.")
 
     member = pe_api.Member(_discord_id=member_id)
     solves = list(map(lambda n: (n, member.has_solved(n)), pe_global.AUTHORS[author_id]))
