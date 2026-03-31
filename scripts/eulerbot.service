@@ -1,0 +1,21 @@
+[Unit]
+Description=Project Euler Bot After=network-online.target
+
+[Service]
+Type=simple
+User=pacome
+WorkingDirectory=/home/pacome/Github/ProjectEulerBot
+
+ExecStart=/home/pacome/Github/ProjectEulerBot/.venv/bin/python eulerbot.py authentic.json
+
+Restart=always
+RestartSec=5
+
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+
