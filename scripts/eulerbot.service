@@ -1,12 +1,13 @@
 [Unit]
-Description=Project Euler Bot After=network-online.target
+Description=Project Euler Bot
+After=network-online.target
 
 [Service]
 Type=simple
-User=pacome
-WorkingDirectory=/home/pacome/Github/ProjectEulerBot
+User=root
+WorkingDirectory=/root/ProjectEulerBot
 
-ExecStart=/home/pacome/Github/ProjectEulerBot/.venv/bin/python eulerbot.py authentic.json
+ExecStart=/root/ProjectEulerBot/.venv/bin/python eulerbot.py authentic.json
 
 Restart=always
 RestartSec=5
@@ -18,4 +19,3 @@ Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
-

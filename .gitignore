@@ -144,7 +144,6 @@ images_saves/
 
 # idea
 .idea
-scripts/
 web_utils/*.png
 compute.py
 tmp.py
