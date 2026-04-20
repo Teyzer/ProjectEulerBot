@@ -206,12 +206,12 @@ class Problem:
             except Exception as _:
                 solvers = 0
 
-
+            # log.info(properties)
             if len(properties) == 3:    
                 difficulty = None
                 title = properties[2].replace("\"", "")
             elif len(properties) == 4:
-                difficulty = int(properties[2].split(": ")[1])
+                difficulty = int(properties[2].split(" ")[2])
                 title = properties[3].replace("\"", "")
             else:
                 raise Exception("Properties did not have 3 or 4 fields, resulted in title not being defined")
