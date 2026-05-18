@@ -1580,7 +1580,6 @@ async def announce_rss():
     if not data.response:
         return
 
-    # pe_database.database_setup("authentic.db")
     current_guids = list(map(
         lambda row: row["guid"],
         pe_database.query_single("SELECT * FROM rss_feed")
@@ -1588,10 +1587,9 @@ async def announce_rss():
 
     messages = []
     problem_events = []
-
     new_guids = []
+    
     for element in pe_rss.parse_rss_items(data.response):
-        
         guid = element["guid"]
         title = element["title"]
         desc = element["description"]
@@ -1606,12 +1604,24 @@ async def announce_rss():
             problem_events.append((problem_id, publication_unix_time))
             continue
 
-        messages.append((
-            pe_rss.html_to_discord_markdown(desc, title),
-            pe_global.MAIN_ANNOUNCEMENT_CHANNEL
-        ))
+        markdown_text = pe_rss.html_to_discord_markdown(desc, title)
+        MAX_LIMIT = 1700
+        
+        if len(markdown_text) > MAX_LIMIT:
+            for i in range(0, len(markdown_text), MAX_LIMIT):
+                chunk = markdown_text[i:i+MAX_LIMIT]
+                messages.append((
+                    chunk,
+                    pe_global.MAIN_ANNOUNCEMENT_CHANNEL
+                ))
+        else:
+            messages.append((
+                markdown_text,
+                pe_global.MAIN_ANNOUNCEMENT_CHANNEL
+            ))
 
     await announce_messages(messages)
+    
     for guid in new_guids:
         query = f"INSERT INTO rss_feed (guid) VALUES ('{guid}');"
         pe_database.query_single(query)
