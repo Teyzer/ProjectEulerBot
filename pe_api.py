@@ -684,23 +684,24 @@ class Member:
         
         soup = BeautifulSoup(kudo_page.response, 'html.parser')
 
-        awards_section = soup.find(id="awards_section")
+        awards_section = soup.find(id="problem_solving_awards_section")
         if awards_section is None:
             raise Exception("awards section is None, this might be because the member is no longer in the friend list, or you're missing an account", self._username)
         
         awards_container = awards_section.find_all("div", recursive=False)
+        log.info(len(awards_container))
 
         div1 = awards_container[0]
         div2 = awards_container[1]
         div3 = awards_container[2]
 
-        problem_awards = div1.find_all(class_="award_box")
+        problem_awards = div1.find_all(class_="tile_box")
         solves_problem = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in problem_awards]
 
-        problem_publication = div2.find_all(class_="award_box")
+        problem_publication = div2.find_all(class_="tile_box")
         solves_publication = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in problem_publication]
         
-        forum_awards = div3.find_all(class_="award_box")
+        forum_awards = div3.find_all(class_="tile_box")
         solves_forum = [1 if len(problem.find_all(class_="smaller green strong")) == 1 else 0 for problem in forum_awards]
 
         self._pe_award_count = sum(solves_problem) + sum(solves_publication) + sum(solves_forum)
@@ -2081,7 +2082,7 @@ def get_awards_specs():
     data = ProjectEulerRequest(url).response
     soup = BeautifulSoup(data, 'html.parser')
 
-    awards_container = soup.find(id="awards_section").find_all("div", recursive=False)
+    awards_container = soup.find(id="problem_solving_awards_section").find_all("div", recursive=False)
 
     div1 = awards_container[0]
     div2 = awards_container[1]
@@ -2089,13 +2090,13 @@ def get_awards_specs():
 
     all_awards = []
 
-    problem_awards = div1.find_all(class_="tooltip inner_box")
+    problem_awards = div1.find_all(class_="tile_box")
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in problem_awards])
 
-    problem_publication = div2.find_all(class_="award_box")
+    problem_publication = div2.find_all(class_="tile_box")
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in problem_publication])
 
-    forum_awards = div3.find_all(class_="award_box")
+    forum_awards = div3.find_all(class_="tile_box")
     all_awards.append([problem.find_all(class_="strong")[0].text for problem in forum_awards])
 
     return all_awards
