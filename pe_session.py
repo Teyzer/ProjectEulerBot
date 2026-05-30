@@ -21,6 +21,8 @@ from rich.console import Console
 from pe_global_objects import log
 import os
 
+from dotenv import load_dotenv
+
 
 console = Console()
 
@@ -70,6 +72,9 @@ def solve(image_name: str, human: bool = False):
 
 
 def try_fetching_cookies(human: bool = False):
+
+    load_dotenv()
+
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
 
@@ -104,7 +109,7 @@ def try_fetching_cookies(human: bool = False):
 
         driver.find_element("xpath", 
             "//input[@id='password' and @name='password']"
-        ).send_keys("IncredibleBoy")
+        ).send_keys(os.environ.get("BOT_KEY"))
 
         driver.find_element("xpath", 
             "//input[@id='captcha' and @name='captcha']"
