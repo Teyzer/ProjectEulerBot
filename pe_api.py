@@ -689,7 +689,6 @@ class Member:
             raise Exception("awards section is None, this might be because the member is no longer in the friend list, or you're missing an account", self._username)
         
         awards_container = awards_section.find_all("div", recursive=False)
-        log.info(len(awards_container))
 
         div1 = awards_container[0]
         div2 = awards_container[1]
