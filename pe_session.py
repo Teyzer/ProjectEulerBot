@@ -64,6 +64,9 @@ def solve(image_name: str, human: bool = False):
     
     solver = imagecaptcha()
     solver.set_key(CAPTCHA_KEY)
+    solver.set_numeric(1)
+    solver.set_minLength(5)
+    solver.set_maxLength(5)
     captcha_text = solver.solve_and_return_solution(image_name)
 
     phone_api.bot_info("Consumed a CAPTCHA token")
