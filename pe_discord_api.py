@@ -1335,7 +1335,7 @@ async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     own_id = challenge.challenge_id
     
     response = f"The challenge has been registered, with ID {own_id}, the challenged member may accept it with /challenge-accept."
-    response += f" They will get {hours} hours to solve the problem from the momment they accept it."
+    response += f" They will get {hours} hours to solve the problem from the moment they accept it."
     
     return await ctx.respond(response)
     
