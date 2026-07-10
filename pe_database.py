@@ -5,6 +5,9 @@ from rich.console import Console
 from typing import List, Dict, Any, Optional
 
 
+from pe_global_objects import log
+
+
 DATABASE_FILE = None
 DB_TOTAL_REQUESTS = 0
 
@@ -59,13 +62,11 @@ def database_setup(database_file: str) -> None:
 
     members = query_single("SELECT * FROM members;")
 
-    temp_console = Console()
-
     member_count: int = len(members)
     solve_count: int = sum([member["solved"] for member in members])
     awards_count: int = sum([member["awards"] for member in members])
     
     last_problem: int = max([len(member["solve_list"]) for member in members] + [0])
 
-    temp_console.log(f"[-] At login, {member_count} members in the database, with {solve_count} solves, {awards_count} awards.")
-    temp_console.log(f"[-] The database goes up to problem {last_problem}.")
+    log.info(f"[-] At login, {member_count} members in the database, with {solve_count} solves, {awards_count} awards.")
+    log.info(f"[-] The database goes up to problem {last_problem}.")

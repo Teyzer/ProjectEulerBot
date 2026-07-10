@@ -1,46 +1,8 @@
-import pe_api
-import pe_discord_api
-import pe_database
-import pe_session
 import pe_global_objects as pe_global
+from pe_setup import setup
 
-from rich.console import Console
-
-import json
-import sys
-
-
-def setup() -> str:
-
-    """
-    Complete setup of the Bot, and returns the discord_key
-    """
-
-    if len(sys.argv) < 2:
-        raise Exception("Missing a profile filename.")
-    
-    profile_name = f"profiles/{sys.argv[1]}"
-    with open(profile_name, "r") as f:
-        profile = json.load(f)
-
-    pe_global.pe_discord_api_setup(profile["announcement_channels"])
-    pe_api.pe_api_setup(profile["session_keys"], profile["pe_account"])
-    pe_database.database_setup(profile["database_file"])
-    pe_session.session_setup(profile["captcha_key"], profile_name)
-    
-    return profile["discord_key"]
-    
 
 if __name__ == '__main__':
 
-    temp_console = Console()
-    temp_console.log(f"[*] Started session with profile '{sys.argv[1]}'")
-
     discord_key = setup()
-    temp_console.rule()
-    
     pe_global.bot.run(discord_key)
-    
-
-    
-    
