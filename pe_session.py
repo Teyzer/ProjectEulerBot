@@ -79,6 +79,7 @@ def try_fetching_cookies(human: bool = False):
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
     pre_form_filename = "web_utils/form.png"
+    post_form_filename = "web_utils/postform.png"
 
     bot_password = PE_PASSWORD or os.environ.get("BOT_KEY")
     if not bot_password:
@@ -131,6 +132,8 @@ def try_fetching_cookies(human: bool = False):
         driver.find_element("xpath", 
             "//input[@name='sign_in' and @type='submit']"
         ).click()   
+
+        driver.save_screenshot(post_form_filename)
 
         cookies = driver.get_cookies()
         return cookies
