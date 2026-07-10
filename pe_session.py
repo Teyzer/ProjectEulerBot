@@ -21,23 +21,23 @@ from rich.console import Console
 from pe_global_objects import log
 import os
 
-from dotenv import load_dotenv
-
 
 console = Console()
 
 MAX_TRIES = 3
 CAPTCHA_KEY = None
 PROFILE_NAME = None
+PE_PASSWORD = None
 
 PHPSESS_NAME = "__Host-PHPSESSID"
 
 
-def session_setup(captcha: str, profile: str) -> None:
+def session_setup(captcha: str, profile: str, pe_password: str) -> None:
 
-    global CAPTCHA_KEY, PROFILE_NAME
+    global CAPTCHA_KEY, PROFILE_NAME, PE_PASSWORD
     CAPTCHA_KEY = captcha
     PROFILE_NAME = profile
+    PE_PASSWORD = pe_password
 
 
 
@@ -73,11 +73,14 @@ def solve(image_name: str, human: bool = False):
 
 def try_fetching_cookies(human: bool = False):
 
-    load_dotenv()
-
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
     pre_form_filename = "web_utils/form.png"
+
+    bot_password = PE_PASSWORD or os.environ.get("BOT_KEY")
+    if not bot_password:
+        log.error("Missing Project Euler password, cannot fetch cookies.")
+        return []
 
     if 'web_utils' not in os.listdir('.'):
         os.mkdir('web_utils')
@@ -110,7 +113,7 @@ def try_fetching_cookies(human: bool = False):
 
         driver.find_element("xpath", 
             "//input[@id='password' and @name='password']"
-        ).send_keys(os.environ.get("BOT_KEY"))
+        ).send_keys(bot_password)
 
         driver.find_element("xpath", 
             "//input[@id='captcha' and @name='captcha']"
@@ -224,7 +227,7 @@ if __name__ == "__main__":
     profile_name = "profiles/authentic.json"
     with open(profile_name, "r") as f:
         data = json.load(f)
-        session_setup(data["captcha_key"], profile_name)
+        session_setup(data["captcha_key"], profile_name, data["pe_account"]["password"])
         
     print(is_connected())
     print(refresh_tokens())
