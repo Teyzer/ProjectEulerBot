@@ -1,4 +1,5 @@
 import pe_global_objects as pe_global
+import pe_discord_api
 from pe_setup import setup
 
 
