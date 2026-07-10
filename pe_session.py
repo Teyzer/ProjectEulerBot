@@ -77,6 +77,7 @@ def try_fetching_cookies(human: bool = False):
 
     url = "https://projecteuler.net/sign_in"
     filename = "web_utils/current-captcha.png"
+    pre_form_filename = "web_utils/form.png"
 
     if 'web_utils' not in os.listdir('.'):
         os.mkdir('web_utils')
@@ -94,7 +95,7 @@ def try_fetching_cookies(human: bool = False):
         driver.set_window_size(1080, 720)
 
         driver.get(url)
-
+        
         captcha = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "captcha_image"))
         )
@@ -118,6 +119,8 @@ def try_fetching_cookies(human: bool = False):
         driver.find_element("xpath", 
             "//input[@id='remember_me' and @name='remember_me']"
         ).click()
+
+        driver.save_screenshot(pre_form_filename)
 
         driver.find_element("xpath", 
             "//input[@name='sign_in' and @type='submit']"

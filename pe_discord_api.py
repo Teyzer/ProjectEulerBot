@@ -76,9 +76,9 @@ async def major_update() -> bool:
     except Exception as exc:
         log.exception(exc)
 
-    # Getting the data required
+    # Getting the data required without blocking the event loop
     try:
-        profiles = pe_api.update_process()
+        profiles = await asyncio.to_thread(pe_api.update_process)
     
     except Exception as exc:
         console.log(exc, traceback.format_exc())
