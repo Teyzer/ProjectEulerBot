@@ -23,6 +23,7 @@ import requests
 import interactions_discord as inters
 import discord
 from discord import option
+from discord.ext import tasks
 
 import glob
 import os
@@ -175,35 +176,25 @@ async def major_update() -> bool:
     return True
 
 
-    
 
-@bot.event
-async def on_ready():
-
-    # Global variables in order to modify them
-    # global REPEATS_SINCE_START
-    # global REPEATS_SUCCESSFUL_SINCE_START
-
-    # The 'Is playing {}' presence
-    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(pe_global.ORANGE_CIRCLE)))
-    
-    # For debugging
-    log.info(f'Login made as {bot.user}')
-    await tester()
-
-    need_to_stop = False
-    while not need_to_stop:
-        
-        # Async sleep
-        await asyncio.sleep(pe_global.AWAIT_TIME)
-        
-        # Main loop
+@tasks.loop(seconds=pe_global.AWAIT_TIME)
+async def background_major_update():
+    try:
+        await major_update()
+    except Exception as exc:
+        log.info(exc, traceback.format_exc())
+        phone_api.bot_crashed(exc)
         try:
-            await major_update()
+            await bot.change_presence(activity=discord.Game(name="{0} Last update failed".format(pe_global.RED_CIRCLE)))
         except Exception as exc:
-            console.log(exc, traceback.format_exc())
-            phone_api.bot_crashed(exc)
-            continue
+            log.warning(exc)
+
+
+@background_major_update.before_loop
+async def before_background_update():
+    await bot.wait_until_ready()
+    await bot.change_presence(activity=discord.Game(name="{0} Restarting...".format(pe_global.ORANGE_CIRCLE)))
+    log.info(f'Login made as {bot.user}')
 
 
 
