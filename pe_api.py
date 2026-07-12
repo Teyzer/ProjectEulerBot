@@ -1867,7 +1867,8 @@ class Member:
 class Challenge:
     
     
-    def __init__(self, from_member: Member, to_member: Member, unix_start: int, hours_duration: int, problem: Problem):
+    def __init__(self, challenge_id: int, from_member: Member, to_member: Member, unix_start: int, hours_duration: int, 
+                 problem: Problem, accepted: bool, unix_accept_time: Optional[int], solved: bool, expired: bool):
         
         self.from_member: Member = from_member
         self.to_member: Member = to_member
@@ -1875,9 +1876,12 @@ class Challenge:
         self.hours_duration: int = hours_duration
         self.problem: Problem = problem
         
-        self.accepted: bool = False
-        self.unix_accept_time: Optional[int] = None
-        self.challenge_id: Optional[int] = None
+        self.accepted: bool = accepted
+        self.unix_accept_time: Optional[int] = unix_accept_time
+        self.challenge_id: int = challenge_id
+
+        self.solved: bool = solved
+        self.expired: bool = expired
         
         
         
@@ -1889,61 +1893,85 @@ class Challenge:
         output_data = []
         for row in data:
             
+            challenge_id = row["id"]
             from_member = Member(_username=row["from_member"])
             to_member = Member(_username=row["to_member"])
             unix_start = row["unix_start"]
             hours_duration = row["hours_duration"]
             problem = Problem(row["problem"])
+            accepted = row["accepted"] == 1
+            unix_accept_time = None if row["unix_accept_time"] == -1 else row["unix_accept_time"]
+            solved = row["finished"] == 1
+            expired = row["finished"] == -1
             
-            challenge = Challenge(from_member, to_member, unix_start, hours_duration, problem)
-            challenge.challenge_id = row["id"]
-            challenge.accepted = row["accepted"] == 1
-            challenge.unix_accept_time = None if row["unix_accept_time"] == -1 else row["unix_accept_time"]
+            challenge = Challenge(
+                challenge_id, from_member, to_member, unix_start, hours_duration, problem,
+                accepted, unix_accept_time, solved, expired
+            )
             
             output_data.append(challenge)
             
         return output_data
             
 
-    def register_in_database(self) -> None:
+    @staticmethod
+    def create(from_member: Member, to_member: Member, problem: Problem, hours_duration: int) -> 'Challenge':
         
-        from_name = self.from_member.username()
-        to_name = self.to_member.username()
-        problem_id = self.problem.problem_id()
+        from_name = from_member.username()
+        to_name = to_member.username()
+        problem_id = problem.problem_id()
         
-        accepted = 1 if self.accepted else 0
-        unix_accept_time = -1 if self.unix_accept_time is None else self.unix_accept_time
-        
-        query = f"INSERT INTO challenges (from_member, to_member, unix_start, hours_duration, problem, accepted, unix_accept_time) \
-            VALUES ('{from_name}', '{to_name}', {self.unix_start}, {self.hours_duration}, {problem_id}, {accepted}, {unix_accept_time});"
+        accepted = 0
+        unix_accept_time = -1
+        unix_start = now_unix()
+        finished = 0
+
+        query = f"INSERT INTO challenges (from_member, to_member, unix_start, hours_duration, problem, accepted, unix_accept_time, finished) \
+            VALUES ('{from_name}', '{to_name}', {unix_start}, {hours_duration}, {problem_id}, {accepted}, {unix_accept_time}, {finished});"
         
         pe_database.query_single(query)
         
-        query_retrieve_row = f"SELECT id FROM challenges WHERE accepted={accepted} AND unix_start={self.unix_start} AND \
+        query_retrieve_row = f"SELECT id FROM challenges WHERE accepted={accepted} AND unix_start={unix_start} AND \
             from_member='{from_name}' AND to_member='{to_name}' ORDER BY id DESC;"
         rows_in_database = pe_database.query_single(query_retrieve_row)
         
-        self.challenge_id = rows_in_database[0]["id"]
+        return Challenge.get_by_id(rows_in_database[0]["id"])
         
     
     def accept(self):
-        
         """
         Will mark the challenge as accepted.
         """
-    
         current_time = now_unix()
         query = f"UPDATE challenges SET accepted=1, unix_accept_time={current_time} WHERE id={self.challenge_id};"
         pe_database.query_single(query)
         
         self.unix_accept_time = current_time
         self.accepted = True    
+
+
+    def set_as_solved(self):
+        """
+        Set the problem as solved in the database.
+        """
+        query = f"UPDATE challenges SET finished=1 WHERE id={self.challenge_id};"
+        pe_database.query_single(query)
+        self.solved = True
         
+
+    def set_as_expired(self) -> None:
+        """
+        Set the problem as expired in the database
+        """
+        query = f"UPDATE challenges SET finished=-1 WHERE id={self.challenge_id};"
+        pe_database.query_single(query)
+        self.expired = True
+
     
     @staticmethod
     def get_by_id(challenge_id: int) -> Optional['Challenge']:
         
-        all_challenges = Challenge.all_challenges(f"SELECT * FROM challenges WHERE id={challenge_id};")
+        all_challenges = Challenge.all_challenges(f"SELECT * FROM challenges WHERE id={challenge_id} LIMIT 1;")
         if len(all_challenges) == 0:
             return None
         
@@ -1960,8 +1988,16 @@ class Challenge:
         
         challenge.accept()
 
-        
-        
+
+    @staticmethod
+    def get_by_member(m: Member) -> List['Challenge']:
+        """
+        Will return all the challenges the member can accept or that are currently ongoing.
+        """
+        query = f"SELECT * FROM challenges WHERE to_member = {m.username()} AND finished=0;"
+        return Challenge.all_challenges(query)
+
+    
         
         
         

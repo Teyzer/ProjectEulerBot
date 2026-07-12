@@ -1329,9 +1329,7 @@ async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     if not from_member.is_discord_linked():
         return await ctx.respond("You need to link your Project Euler account first.")
     
-    challenge: pe_api.Challenge = pe_api.Challenge(from_member, to_member, pe_api.now_unix(), hours, pe_api.Problem(problem))
-    challenge.register_in_database()
-    
+    challenge = pe_api.Challenge.create(from_member, to_member, pe_api.Problem(problem), hours)
     own_id = challenge.challenge_id
     
     response = f"The challenge has been registered, with ID {own_id}, the challenged member may accept it with /challenge-accept."
