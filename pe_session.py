@@ -131,8 +131,8 @@ def try_fetching_cookies(human: bool = False):
 
         driver.find_element("xpath", 
             "//input[@name='sign_in' and @type='submit']"
-        ).click()   
-
+        ).click()
+        
         driver.save_screenshot(post_form_filename)
 
         cookies = driver.get_cookies()
