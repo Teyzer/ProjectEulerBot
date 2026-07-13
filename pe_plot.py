@@ -133,7 +133,7 @@ def format_data_for_individual_graph(file_content: str, username: str) -> list:
 
 
 
-def generate_individual_graph(file_content: str, username: str) -> Optional[str]:
+async def generate_individual_graph(file_content: str, username: str) -> Optional[str]:
     
     minimal_date = datetime.datetime(1980, 1, 1, 0, 0, 0)
     solves = format_data_for_individual_graph(file_content, username)
@@ -151,7 +151,7 @@ def generate_individual_graph(file_content: str, username: str) -> Optional[str]
     difference = solves[-1][1].timestamp() - starting_timestamp + temp_epsilon
 
     try:
-        problems = pe_api.problems_list()[1:-1]
+        problems = (await pe_api.problems_list())[1:-1]
     except Exception as _:
         return None
 

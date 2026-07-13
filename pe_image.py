@@ -324,7 +324,7 @@ def concatenate_image_gif(username: str):
 
 
 
-def project_euler_grid(cells_to_fill: List[Tuple[int, Tuple[int, int, int]]]) -> str:
+def project_euler_grid(cells_to_fill: List[Tuple[int, Tuple[int, int, int]]], last_problem) -> str:
 
     """
     A list of cells to fill, with the associated color
@@ -335,8 +335,6 @@ def project_euler_grid(cells_to_fill: List[Tuple[int, Tuple[int, int, int]]]) ->
     img = Image.new("RGB", dimensions)
     draw = ImageDraw.Draw(img, "RGB")
     draw.rectangle(((0, 0), dimensions), (0, 0, 0))
-
-    last_problem = pe_api.last_problem()
 
     fill_option = [False for i in range(last_problem + 1)]
     color_option = [None for i in range(last_problem + 1)]

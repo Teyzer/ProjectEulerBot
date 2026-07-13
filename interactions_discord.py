@@ -140,7 +140,7 @@ def problem_thread_view(problem_number: int):
                 if th.archived:
                     await th.unarchive()
                 
-                await th.add_user(pe_global.bot.get_user(interaction.user.id))
+                await th.add_user(interaction.user)
                 break 
 
     # Add the method to the button object

@@ -52,7 +52,7 @@ async def major_update() -> bool:
     session_alive = await pe_session.is_connected()
 
     if not website_active or not session_alive:
-        pe_session.refresh_tokens()
+        await asyncio.to_thread(pe_session.refresh_tokens)
         website_active = await pe_session.is_website_active()
         session_alive = await pe_session.is_connected()
 
@@ -487,7 +487,7 @@ async def on_message(message):
             data = await pe_api.Problem.complete_list()
             problem_object: pe_api.Problem = data[problem_id - 1]
             problem_embed = discord.Embed(description=
-                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{problem_object.name()}' (Level {problem_object.difficulty()}/{problem_object.solves()})"
+                f"[Open problem #{problem_id}](https://projecteuler.net/problem={problem_id}) in web browser: '{await problem_object.name()}' (Level {await problem_object.difficulty()}/{await problem_object.solves()})"
             )
         except Exception as _:
             problem_embed = discord.Embed(description=
@@ -654,7 +654,6 @@ async def command_thread(ctx, problem: int):
         last_pb = await pe_api.Problem.last_problem()
     except Exception as _:
         last_pb = pe_api.last_problem_database()
-    console.log(await pe_api.Problem.last_problem())
     
     # Just to ensure there's no unused thread
     if problem > last_pb:
@@ -832,21 +831,21 @@ async def commmand_grid(ctx, member: discord.User):
 
     m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    if not m.is_discord_linked():
+    if not await m.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-    if m.private() and m.discord_id() != str(ctx.author.id):
+    if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
     solves = []
-    for index, boolean in enumerate(m.solve_array()):
+    for index, boolean in enumerate(await m.solve_array()):
         if boolean:
             solves.append(index + 1)
 
     solves_with_color = list(map(lambda x: (x, (220, 220, 220)), solves))
-    grid_image = pe_image.project_euler_grid(solves_with_color)
+    grid_image = pe_image.project_euler_grid(solves_with_color, await pe_api.last_problem())
     
-    await ctx.respond(f"Here is the grid for user `{m.username_option()}`", file=discord.File(grid_image))
+    await ctx.respond(f"Here is the grid for user `{await m.username_option()}`", file=discord.File(grid_image))
     os.remove(grid_image)
     
     
@@ -859,16 +858,16 @@ async def commmand_grid_animation(ctx, member: discord.User):
 
     m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    if not m.is_discord_linked():
+    if not await m.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
 
-    if m.private() and m.discord_id() != str(ctx.author.id):
+    if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
     
-    username = m.username_option()
-    content = m.solve_csv()
+    username = await m.username_option()
+    content = await m.solve_csv()
     
-    file_path = pe_plot.generate_individual_graph(content, username)
+    file_path = await pe_plot.generate_individual_graph(content, username)
 
     if file_path is None:
         await ctx.respond("I could not generate the graph, it requires to know when was each problem published and the request to the server failed.")
@@ -918,7 +917,7 @@ async def command_announce_back(ctx, problem: int, member: discord.User):
         discord_id = member.id
 
     m = pe_api.Member(_discord_id = discord_id)
-    m.make_problem_unsolved(problem)
+    await m.make_problem_unsolved(problem)
 
     await ctx.respond("The solve will quickly be announced. Use /update if you want it to be right now.")
 
@@ -934,7 +933,7 @@ async def command_force_new_session(ctx):
     if not perms:
         return await ctx.respond("You need to be a moderator or more to use this, sorry!", ephemeral=True)
     
-    values = pe_session.refresh_tokens()
+    values = await asyncio.to_thread(pe_session.refresh_tokens)
     success = not(any([values[k] is None for k in values.keys()]))
 
     pe_api.COOKIES = values
