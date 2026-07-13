@@ -202,10 +202,10 @@ def refresh_tokens():
 
 
 
-def is_connected() -> bool:
+async def is_connected() -> bool:
 
     try:
-        pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/archives", True)
+        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/archives", True)
     except TooManyRedirects as exc:
         pe_api.console.log(exc, traceback.format_exc())
         log.exception(exc)
@@ -219,9 +219,9 @@ def is_connected() -> bool:
     return "Logged in as" in pe_request.response
 
 
-def is_website_active() -> bool:
+async def is_website_active() -> bool:
     try:
-        pe_request = pe_api.ProjectEulerRequest("https://projecteuler.net/", False)
+        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/", False)
     except pe_api.EulerRequestFail as _:
         return False
     return pe_request.status == 200

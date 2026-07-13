@@ -78,6 +78,8 @@ AUTHORS = {
     '677976899166797828': [653, 996] # Yoni
 }
 
+MAX_CONCURRENT_REQUESTS = 3
+
 
 logging.basicConfig(
     level=logging.INFO,

@@ -20,6 +20,9 @@ from pe_global_objects import log
 
 import traceback
 
+import aiohttp
+import asyncio
+
 from typing import List, Dict, Optional, Any, Tuple, Union
 
 
@@ -65,6 +68,9 @@ class EulerRequestFail(Exception):
 class ProjectEulerRequest:
 
 
+    _semaphore = asyncio.Semaphore(pe_global.MAX_CONCURRENT_REQUESTS)
+
+
     @staticmethod
     def request_failed() -> None:
         """
@@ -85,59 +91,53 @@ class ProjectEulerRequest:
         LAST_REQUEST_TIME = datetime.datetime.now(pytz.utc)
         TOTAL_SUCCESS_REQUESTS += 1
 
-    
-    def __init__(self, target_url: str, need_login: bool = True, allowed_tries: int = 5) -> None:
 
-        global TOTAL_REQUESTS, SESSION_REQUESTS
+    def __init__(self):
+        self.status = None
+        self.response = None
+        self.err = None
+
+
+    @classmethod
+    async def fetch(cls, target_url: str, need_login: bool = True, allowed_tries: int = 5):
         
-        TOTAL_REQUESTS += 1
-        SESSION_REQUESTS += 1
-
-        if need_login:
-            cookies = COOKIES
-        else:
-            cookies = {}
-
-        for try_id in range(1, allowed_tries+1):
-
-            if try_id > 1:
-                log.info(f"Making try #{try_id}/{allowed_tries} for {target_url} | need_login={need_login}")
-
-            try:
-                # Do the request to the website, with the right cookies that emulate the account
-                r = requests.get(target_url, cookies=cookies, timeout=30)
-                self.status = int(r.status_code)
-                
-                if r.status_code != 200:
-                    # Phone API is sending a notifications to teyzer's phone
-                    phone_api.bot_crashed(r.status_code)
-                    ProjectEulerRequest.request_failed()
-                    self.response: str | Exception | None = None
-                    log.error(r.text)
-                    raise EulerRequestFail
-                else:
-                    ProjectEulerRequest.request_succeeded()
-                    self.response: str | Exception | None = r.text
-                    self.err = None
-                    return
-                
-            except Exception as err:
-
-                if not isinstance(err, ProjectEulerRequest):
-                    phone_api.bot_crashed(str(err))
-                    ProjectEulerRequest.request_failed()
-                    self.status = None
-                    self.response: str | Exception | None = None
-                    self.err = err
-
-                if try_id == allowed_tries:
-                    raise EulerRequestFail
+        async with cls._semaphore:
             
+            global TOTAL_REQUESTS, SESSION_REQUESTS
+            TOTAL_REQUESTS += 1
+            SESSION_REQUESTS += 1
+            
+            instance = cls()
+            cookies = COOKIES if need_login else {}
 
+            async with aiohttp.ClientSession(cookies=cookies) as session:
+                for try_id in range(1, allowed_tries + 1):
+                    if try_id > 1:
+                        log.info(f"Making try #{try_id}/{allowed_tries} for {target_url}")
 
+                    try:
+                        async with session.get(target_url, timeout=30) as r:
+                            instance.status = r.status
+                            
+                            if r.status != 200:
+                                phone_api.bot_crashed(r.status)
+                                cls.request_failed()
+                                log.error(await r.text())
+                                raise EulerRequestFail
+                            else:
+                                cls.request_succeeded()
+                                instance.response = await r.text()
+                                return instance
+                                
+                    except Exception as err:
+                        if not isinstance(err, EulerRequestFail):
+                            phone_api.bot_crashed(str(err))
+                            cls.request_failed()
+                            instance.err = err
+                            
+                        if try_id == allowed_tries:
+                            raise EulerRequestFail
 
-
-        
 
 class Problem:
     
@@ -167,7 +167,7 @@ class Problem:
 
 
     @staticmethod
-    def __fetch_problems() -> None:
+    async def __fetch_problems() -> None:
         
         """
         Updates the global array `PROBLEMS`, which contains every problem
@@ -175,7 +175,7 @@ class Problem:
         
         res_list = []
         
-        api_data = ProjectEulerRequest("https://projecteuler.net/minimal=problems", False)
+        api_data = await ProjectEulerRequest.fetch("https://projecteuler.net/minimal=problems", False)
         
         rows = api_data.response.split("\n")
         timestamps = [
@@ -183,7 +183,7 @@ class Problem:
             for x in rows[1:-1]
         ]
         
-        ux_data = ProjectEulerRequest("https://projecteuler.net/progress", True)
+        ux_data = await ProjectEulerRequest.fetch("https://projecteuler.net/progress", True)
         soup = BeautifulSoup(ux_data.response, 'html.parser')
         div = soup.find("div", id="problems_solved_section").find_all("span", class_='tooltiptext_narrow')
         
@@ -261,39 +261,39 @@ class Problem:
     
 
     @staticmethod
-    def __ensure_updated() -> None:
+    async def __ensure_updated() -> None:
         if Problem.__should_be_updated():
-            Problem.__fetch_problems()
+            await Problem.__fetch_problems()
     
 
     @staticmethod
-    def complete_list() -> List['Problem']:
+    async def complete_list() -> List['Problem']:
 
         """
         Returns a list containing all problems. L[i - 1] is thus problem i. Each
         element is a Problem instance.
         """
-        Problem.__ensure_updated()
+        await Problem.__ensure_updated()
             
         return [element["problem"] for element in Problem._all_problems]
     
 
     @staticmethod
-    def last_problem() -> int:
+    async def last_problem() -> int:
         """
         returns the id of the last problem
         """
-        Problem.__ensure_updated()
+        await Problem.__ensure_updated()
 
         return len(Problem._all_problems)
     
 
     @staticmethod
-    def difficulties_count() -> int:
+    async def difficulties_count() -> int:
         """
         returns the number of difficulties currently available in the archives
         """
-        return (Problem.last_problem() - 1 - 10) // 25 
+        return (await Problem.last_problem() - 1 - 10) // 25 
         
     
     def problem_id(self) -> int:
@@ -308,7 +308,7 @@ class Problem:
         return self._problem_id
     
 
-    def update_from_project_euler(self) -> None:
+    async def update_from_project_euler(self) -> None:
         
         """
         Will update the problem, and gather the information you can about it on Project Euler. 
@@ -320,13 +320,13 @@ class Problem:
         
         latest = Problem.__last_update(self._problem_id)
         if latest is None or not is_recent_unix(latest):
-            Problem.__fetch_problems()
+            await Problem.__fetch_problems()
             
         for field in ["_name", "_unix_publication", "_solves", "_difficulty_rating"]:    
             self.__dict__[field] = Problem._all_problems[self._problem_id - 1]["problem"].__dict__[field]
 
 
-    def name(self) -> str:
+    async def name(self) -> str:
         
         """
         Return the name (title) of the problem
@@ -339,12 +339,12 @@ class Problem:
             raise ValueError("_name and _problem_id fields are both undefined")
         
         if self._name is None:
-            self.update_from_project_euler()
+            await self.update_from_project_euler()
             
         return self._name
     
     
-    def unix_publication(self) -> int:
+    async def unix_publication(self) -> int:
         
         """
         Returns the unix publication date of the problem 
@@ -357,12 +357,12 @@ class Problem:
             raise ValueError("_unix_publication and _problem_id fields are both undefined")
         
         if self._unix_publication is None:
-            self.update_from_project_euler()
+            await self.update_from_project_euler()
             
         return self._unix_publication
     
     
-    def solves(self) -> int:
+    async def solves(self) -> int:
         
         """
         return the number of solves of a problem
@@ -375,21 +375,21 @@ class Problem:
             raise ValueError("_solves and _problem_id fields are both undefined")
         
         if self._solves is None:
-            self.update_from_project_euler()
+            await self.update_from_project_euler()
             
         return self._solves
     
     
-    def difficulty_is_defined(self) -> bool:
+    async def difficulty_is_defined(self) -> bool:
         
         if self._difficulty_rating is not None:
             return True
         
-        self.update_from_project_euler()
+        await self.update_from_project_euler()
         return self._difficulty_rating is not None
     
     
-    def difficulty(self) -> Optional[int]:
+    async def difficulty(self) -> Optional[int]:
         
         """
         Returns the difficulty a problem
@@ -402,19 +402,19 @@ class Problem:
             raise ValueError("_difficulty_rating and _problem_id are both undefined")
         
         if self._difficulty_rating is None:
-            self.update_from_project_euler()
+            await self.update_from_project_euler()
             
         return self._difficulty_rating
     
 
-    def difficulty_relative(self) -> Optional[int]:
+    async def difficulty_relative(self) -> Optional[int]:
         """
         Returns the relative difficulty of a problem, that is, the difficulty over the number of problems in the archive, times 
         """
-        return (100 * self.difficulty()) // Problem.difficulties_count()
+        return (100 * await self.difficulty()) // await Problem.difficulties_count()
             
 
-    def guess_difficulty_detailed(self, neighbors_count: int = 5) -> Tuple[int, List['Problem']]:
+    async def guess_difficulty_detailed(self, neighbors_count: int = 5) -> Tuple[int, List['Problem']]:
         
         """
         returns the difficulty level guessed by the bot with a k-neighbor algorithm, along 
@@ -428,7 +428,7 @@ class Problem:
         prob_key = str(self.problem_id())
 
         # TODO: make this a function incorporated inside the Problem object
-        problem_data = get_fastest_solvers(self.problem_id())
+        problem_data = await get_fastest_solvers(self.problem_id())
         solve_count = len(problem_data.keys())
         
         new_dictionary = {}
@@ -458,40 +458,40 @@ class Problem:
             return total
 
         nearests = sorted(new_dictionary.keys(), key=lambda k: own_distance(problem_data, new_dictionary[k]), reverse=False)
-        all_problems = Problem.complete_list()
+        all_problems = await Problem.complete_list()
 
         to_keep: List[Problem] = list(map(lambda key: all_problems[int(key) - 1], nearests[:neighbors_count]))
-        to_keep_difficulties: List[int] = list(map(lambda problem: problem.difficulty(), to_keep))
+        to_keep_difficulties: List[int] = [await problem.difficulty() for problem in to_keep]
 
         difficulty = sorted(to_keep_difficulties)[neighbors_count // 2]
         
         return difficulty, to_keep
 
 
-    def guess_difficulty(self) -> int:
+    async def guess_difficulty(self) -> int:
         """
         returns the difficulty level guessed by the bot with a k-neighbor algorithm
         """
-        return self.guess_difficulty_detailed()[0]
+        return (await self.guess_difficulty_detailed())[0]
         
             
-    def title(self) -> int:
+    async def title(self) -> int:
         """
         Alias for self.name() 
         """
-        return self.name()
+        return await self.name()
         
         
-    def solvers_in_discord(self) -> List['Member']:
+    async def solvers_in_discord(self) -> List['Member']:
         
-        members: List['Member'] = Member.members()
+        members: List['Member'] = await Member.members()
         
         valid_solvers = []
         
         member: 'Member'
         for member in members:
             
-            if member.has_solved(self.problem_id()):
+            if await member.has_solved(self.problem_id()):
                 valid_solvers.append(member)
                 
         return valid_solvers
@@ -619,7 +619,7 @@ class Member:
         return self.__str__()
 
         
-    def update_from_friend_list(self, friend_page: Optional[ProjectEulerRequest] = None) -> None:
+    async def update_from_friend_list(self, friend_page: Optional[ProjectEulerRequest] = None) -> None:
 
         """
         Update the Member object according to the bot's friend list.
@@ -629,7 +629,7 @@ class Member:
         """
 
         if friend_page is None:
-            friend_page = ProjectEulerRequest(BASE_URL.format("friends"))
+            friend_page = await ProjectEulerRequest.fetch(BASE_URL.format("friends"))
         
         if friend_page.status != 200:
             ProjectEulerRequest.request_failed()
@@ -641,7 +641,7 @@ class Member:
         
         target_member = None
         for element in text_response:
-            if element[0] == self.username():
+            if element[0] == await self.username():
                 target_member = element
                 break
 
@@ -669,14 +669,14 @@ class Member:
         self._pe_bonus_array = to_solve_bool_array(target_member[6])
 
     
-    def update_from_award_list(self) -> None:
+    async def update_from_award_list(self) -> None:
 
         """
         Update the awards of the member according to their awards page.
         """
         
-        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={self.username()};show=awards")
-        kudo_page = ProjectEulerRequest(request_url)
+        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={await self.username()};show=awards")
+        kudo_page = await ProjectEulerRequest.fetch(request_url)
         
         if kudo_page.status != 200:
             ProjectEulerRequest.request_failed()
@@ -710,14 +710,14 @@ class Member:
         ))
         
         
-    def update_from_post_page(self) -> None:
+    async def update_from_post_page(self) -> None:
 
         """
         Update the Member's posts according to their post page.
         """
 
-        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={self.username()};show=posts")
-        post_page = ProjectEulerRequest(request_url)
+        request_url = NOT_MINIMAL_BASE_URL.format(f"progress={await self.username()};show=posts")
+        post_page = await ProjectEulerRequest.fetch(request_url)
         
         if post_page.status != 200:
             ProjectEulerRequest.request_failed()
@@ -749,7 +749,7 @@ class Member:
         self._pe_kudo_array = posts
 
 
-    def update_from_database(self, connection = None, data = None) -> None:
+    async def update_from_database(self, connection = None, data = None) -> None:
 
         """
         Downloads all the data from the database regarding this member, and updates all of its properties, so that they can be then used.
@@ -780,8 +780,8 @@ class Member:
         while check_function(data) == 0:
             
             if data is not None:
-                self.update_from_friend_list()
-                self.push_basics_to_database()
+                await self.update_from_friend_list()
+                await self.push_basics_to_database()
             
             temp_query = "SELECT * FROM members;"
             data = pe_database.query_option(temp_query, connection)
@@ -810,7 +810,7 @@ class Member:
                 break
                 
     
-    def update_from_database_kudo(self, connection = None, data = None) -> None:
+    async def update_from_database_kudo(self, connection = None, data = None) -> None:
         
         key_id, value_id = self.identity()
 
@@ -829,8 +829,8 @@ class Member:
         while check_function(data) == 0:
             
             if data is not None:
-                self.update_from_post_page()
-                self.push_kudo_to_database()
+                await self.update_from_post_page()
+                await self.push_kudo_to_database()
         
             temp_query = f"SELECT * FROM members \
                 INNER JOIN pe_posts ON members.username = pe_posts.username \
@@ -860,57 +860,57 @@ class Member:
         or from the project euler website, depending on where we have initiated the object.
         """
         if self._username is not None:
-            return "username", self.username()
+            return "username", self._username
         elif self._discord_id is not None:
-            return "discord_id", self.discord_id()
+            return "discord_id", self._discord_id
         else:
             raise Exception("Need either a username or a Discord ID")
         
 
-    def private(self) -> bool:
+    async def private(self) -> bool:
         """
         Returns whether the user wants its username displayed somewhere or not.
         """
         if self._private is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._private
     
 
-    def push_privacy_to_database(self, new_privacy: bool, connection = None) -> None:
+    async def push_privacy_to_database(self, new_privacy: bool, connection = None) -> None:
         """
         Updates a member's privacy in the database. `new_privacy` set as `true` indicates the member will be private.
         """
         new_value = "1" if (new_privacy == True) else "0"
-        dis_id = self.discord_id()
+        dis_id = await self.discord_id()
         temp_query = f"UPDATE members SET private = {new_value} WHERE discord_id = '{dis_id}';"
 
         pe_database.query_option(temp_query, connection)
         self._private = new_privacy
 
 
-    def favorite_problem(self) -> Optional[int]:
+    async def favorite_problem(self) -> Optional[int]:
         """
         Returns the ID of the favorite problem of the member. Can be None.
         """
         if self._favorite_problem is None:
-            self.update_from_database()
+            await self.update_from_database()
 
         # This can be None! If the user has never made any selection
         return self._favorite_problem
 
 
-    def reason_favorite_problem(self) -> Optional[str]:
+    async def reason_favorite_problem(self) -> Optional[str]:
         """
         Returns the reason why the member has selected this problem as favorite. Can be None or an empty string.
         """
         if self._reason_favorite_problem is None:
-            self.update_from_database()
+            await self.update_from_database()
 
         # This can be None or an empty string.
         return self._reason_favorite_problem
 
 
-    def push_favorite_to_database(self, favorite_problem: Optional[int], reason_favorite_problem: Optional[str]) -> None:
+    async def push_favorite_to_database(self, favorite_problem: Optional[int], reason_favorite_problem: Optional[str]) -> None:
 
         if favorite_problem is None:
             favorite_problem = 'NULL'
@@ -922,78 +922,79 @@ class Member:
         else:
             reason_favorite_problem = f'"{reason_favorite_problem}"'
 
-        discord_id = self.discord_id()
+        discord_id = await self.discord_id()
         temp_query = f'UPDATE members SET favorite = {favorite_problem}, reason_favorite = {reason_favorite_problem} WHERE discord_id = "{discord_id}";'
 
         pe_database.query_single(temp_query)
 
 
-    def username(self) -> str:
+    async def username(self) -> str:
         """
         Returns the Project Euler username of the member.
         """
         if self._username is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._username
     
 
-    def username_option(self) -> str:
+    async def username_option(self) -> str:
         """
         Returns the Project Euler username or "Private Account" if the account is private
         """
-        if self.private():
+        if await self.private():
             return "Private Account"
-        return self.username()
+        return await self.username()
     
 
-    def nickname(self) -> str:
+    async def nickname(self) -> str:
         """
         Returns the nickname of the account on Project Euler. This can be an empty string.
         """
         if self._nickname is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._nickname
     
 
-    def username_ping(self) -> str:
+    async def username_ping(self) -> str:
 
         """
         Returns the username formatted for discord code blocks, along with the discord ping if available
         """
 
-        dis_id = self.discord_id()
+        dis_id = await self.discord_id()
 
-        if self.private():
+        if await self.private():
             return f"`Private Profile`"
 
+        username = await self.username()
         if dis_id != "":
-            return f"`{self.username()}` (<@{dis_id}>)"
+            return f"`{username}` (<@{dis_id}>)"
         
-        return f"`{self.username()}`"  
+        return f"`{username}`"  
     
 
-    def country(self) -> str:
+    async def country(self) -> str:
         """
         Returns the country of the Project Euler account
         """
         if self._country is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._country
     
 
-    def language(self) -> str:
+    async def language(self) -> str:
         """
         Returns the language of the Project Euler account.
         """
         if self._language is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._language
     
     
-    def solve_csv_untouched(self) -> str:
+    async def solve_csv_untouched(self) -> str:
         
-        csv_url = f"https://projecteuler.net/history={self.username()}"
-        req = ProjectEulerRequest(csv_url)
+        csv_url = f"https://projecteuler.net/history={await self.username()}"
+        req = await ProjectEulerRequest.fetch(csv_url)
         
         csv_content = req.response
         
@@ -1001,18 +1002,18 @@ class Member:
         
     
     
-    def solve_csv(self) -> str:
+    async def solve_csv(self) -> str:
         """
         Returns a CSV string of the solves of the member. Formatted to account for the solves that are omitted.
         """
-        csv_content = self.solve_csv_untouched()        
+        csv_content = await self.solve_csv_untouched()        
         
         lines = list(filter(lambda x: x.strip() != '', csv_content.split("\n")))
         problems_ids = set(map(lambda x: x.split(',')[0], lines))
         
         line_format = '{problem_id},"random title",01 Jan 70 (01:00)'
         
-        for solve in self.solved_problems():
+        for solve in await self.solved_problems():
             if str(solve) not in problems_ids:
                 lines.append(line_format.format(problem_id=solve))
         
@@ -1020,7 +1021,7 @@ class Member:
         return csv_content
     
 
-    def solves_by_csv(self) -> List[Solve]:
+    async def solves_by_csv(self) -> List[Solve]:
         
         """
         returns a list of all the solves of an user, with the CSV available on the website
@@ -1030,10 +1031,10 @@ class Member:
         seperator = ","
 
         solves = []
-        if self.solve_count() == 0:
+        if await self.solve_count() == 0:
             return solves
 
-        csv_string = self.solve_csv()
+        csv_string = await self.solve_csv()
         solves_found = set()
 
         lines = csv_string.split("\n")
@@ -1058,7 +1059,7 @@ class Member:
 
             solves_found.add(problem_id)
 
-        for problem_id in self.solved_problems():
+        for problem_id in await self.solved_problems():
             
             if problem_id not in solves_found:
                 solves.append(
@@ -1079,7 +1080,7 @@ class Member:
 
     
 
-    def solve_count(self) -> int:
+    async def solve_count(self) -> int:
 
         """
         Returns the number of solves made by the member.
@@ -1090,11 +1091,11 @@ class Member:
         elif self._database_solve_count is not None:
             return self._database_solve_count
         
-        self.update_from_database()
+        await self.update_from_database()
         return self._database_solve_count
     
 
-    def pe_solve_count(self) -> int:
+    async def pe_solve_count(self) -> int:
 
         """
         Returns the number of solves made by the member, as seen on Project Euler.
@@ -1103,14 +1104,14 @@ class Member:
         if self._pe_solve_count is not None:
             return self._pe_solve_count
         
-        self.update_from_friend_list()
+        await self.update_from_friend_list()
         if self._pe_solve_count is None:
             raise ValueError("_pe_solve_count should not be None after an update from friend list.")
 
         return self._pe_solve_count
         
 
-    def database_solve_count(self) -> int:
+    async def database_solve_count(self) -> int:
 
         """
         Returns the number of solves made by the member in the database.
@@ -1120,14 +1121,14 @@ class Member:
         if self._database_solve_count is not None:
             return self._database_solve_count
         
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_solve_count is None:
             raise ValueError("_database_solve_count should not be None after an update from database.")
 
         return self._database_solve_count
     
 
-    def solve_array(self) -> List[bool]:
+    async def solve_array(self) -> List[bool]:
 
         """
         Returns an array of boolean: [b_1, ..., b_last_problem] where every True represents a problem solved
@@ -1138,14 +1139,14 @@ class Member:
         elif self._database_solve_array is not None:
             return self._database_solve_array
         
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_solve_array is None:
             raise ValueError("_database_solve_array should not be None after update from database.")
 
         return self._database_solve_array
     
 
-    def pe_solve_array(self) -> List[bool]:
+    async def pe_solve_array(self) -> List[bool]:
 
         """
         Returns an array of boolean: [b_1, ..., b_last_problem] where every True represents a problem solved,
@@ -1155,14 +1156,14 @@ class Member:
         if self._pe_solve_array is not None:
             return self._pe_solve_array
         
-        self.update_from_friend_list()
+        await self.update_from_friend_list()
         if self._pe_solve_array is None:
             raise ValueError("_pe_solve_array should not be None after update from friend list.")
 
         return self._pe_solve_array
 
 
-    def database_solve_array(self) -> List[bool]:
+    async def database_solve_array(self) -> List[bool]:
 
         """
         Returns an array of boolean: [b_1, ..., b_last_problem] where every True represents a problem solved,
@@ -1172,14 +1173,14 @@ class Member:
         if self._database_solve_array is not None:
             return self._database_solve_array
         
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_solve_array is None:
             raise ValueError("_database_solve_array should not be None after update from database.")
 
         return self._database_solve_array
     
 
-    def has_solved(self, problem: int) -> bool:
+    async def has_solved(self, problem: int) -> bool:
 
         """
         With a problem id, returns whether the member has solved this problem or not.
@@ -1191,18 +1192,20 @@ class Member:
         if problem < 0:
 
             problem = -problem
-            if problem - 1 >= len(self.solve_bonus_array()):
+            bonus_array = await self.solve_bonus_array()
+            if problem - 1 >= len(bonus_array):
                 return False
-            return self.solve_bonus_array()[problem - 1]
+            return bonus_array[problem - 1]
 
         if problem > 0:
 
-            if problem - 1 >= len(self.solve_array()):
+            solve_arr = await self.solve_array()
+            if problem - 1 >= len(solve_arr):
                 return False
-            return self.solve_array()[problem - 1]
+            return solve_arr[problem - 1]
     
 
-    def award_count(self) -> int:
+    async def award_count(self) -> int:
 
         """
         Returns the number of awards, classic ones and forum post ones
@@ -1213,11 +1216,11 @@ class Member:
         elif self._database_award_count is not None:
             return self._database_award_count
         
-        self.update_from_database()
+        await self.update_from_database()
         return self._database_award_count
     
 
-    def pe_award_count(self) -> int:
+    async def pe_award_count(self) -> int:
 
         """
         Returns the number of awards according to Project Euler.
@@ -1226,14 +1229,14 @@ class Member:
         if self._pe_award_count is not None:
             return self._pe_award_count
         
-        self.update_from_award_list()
+        await self.update_from_award_list()
         if self._pe_award_count is None:
             raise ValueError("_pe_award_count should not be None after update from award list.")
 
         return self._pe_award_count
     
 
-    def database_award_count(self) -> int:
+    async def database_award_count(self) -> int:
 
         """
         Returns the number of awards according to the Database.
@@ -1242,14 +1245,14 @@ class Member:
         if self._database_award_count is not None:
             return self._database_award_count
         
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_award_count is None:
             raise ValueError("_database_award_count should not be None after update from database.")
 
         return self._database_award_count
         
 
-    def award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
+    async def award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
 
         """
         Returns an array with the awards, like
@@ -1265,35 +1268,35 @@ class Member:
         elif self._database_award_array is not None:
             return self._database_award_array
         
-        self.update_from_database()
+        await self.update_from_database()
         return self._database_award_array
     
     
-    def pe_award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
+    async def pe_award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
         
         if self._pe_award_array is not None:
             return self._pe_award_array
         
-        self.update_from_award_list()
+        await self.update_from_award_list()
         if self._pe_award_array is None:
             raise ValueError("_pe_award_array should not be None after update from award list.")
 
         return self._pe_award_array
     
     
-    def database_award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
+    async def database_award_array(self) -> Tuple[List[bool], List[bool], List[bool]]:
         
         if self._database_award_array is not None:
             return self._database_award_array
         
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_award_array is None:
             raise ValueError("_database_award_array should not be None after update from award list.")
 
         return self._database_award_array
     
     
-    def kudo_count(self) -> int:
+    async def kudo_count(self) -> int:
 
         """
         Return the total kudo count
@@ -1304,11 +1307,11 @@ class Member:
         elif self._database_kudo_count is not None:
             return self._database_kudo_count
         
-        self.update_from_post_page()
+        await self.update_from_post_page()
         return self._database_kudo_count
         
         
-    def pe_kudo_count(self) -> int:
+    async def pe_kudo_count(self) -> int:
 
         """
         Returns the number of kudo that this user has.
@@ -1317,14 +1320,14 @@ class Member:
         if self._pe_kudo_count is not None:
             return self._pe_kudo_count
         
-        self.update_from_post_page()
+        await self.update_from_post_page()
         if self._pe_kudo_count is None:
             raise ValueError("_pe_kudo_count should not be None after update from post page.")
 
         return self._pe_kudo_count
     
     
-    def database_kudo_count(self) -> int:
+    async def database_kudo_count(self) -> int:
 
         """
         Returns the number of kudo that this user has according to the database.
@@ -1333,14 +1336,14 @@ class Member:
         if self._database_kudo_count is not None:
             return self._database_kudo_count
         
-        self.update_from_database_kudo()
+        await self.update_from_database_kudo()
         if self._database_kudo_count is None:
             raise ValueError("_database_kudo_count should not be None after update from kudo database.")
 
         return self._database_kudo_count
     
     
-    def kudo_array(self) -> List[Tuple[int, int]]:
+    async def kudo_array(self) -> List[Tuple[int, int]]:
 
         """
         The list of kudos, in an array like [(107, 5), (108, 2)]
@@ -1352,99 +1355,99 @@ class Member:
         elif self._database_kudo_array is not None:
             return self._database_kudo_array
         
-        self.update_from_database_kudo()
+        await self.update_from_database_kudo()
         return self._database_kudo_array
         
 
-    def pe_kudo_array(self) -> List[Tuple[int, int]]:
+    async def pe_kudo_array(self) -> List[Tuple[int, int]]:
         
         if self._pe_kudo_array is not None:
             return self._pe_kudo_array
         
-        self.update_from_post_page()
+        await self.update_from_post_page()
         if self._pe_kudo_array is None:
             raise ValueError("_pe_kudo_array should not be None after update from post page.")
 
         return self._pe_kudo_array
 
 
-    def has_kudos_in_database(self) -> bool:
+    async def has_kudos_in_database(self) -> bool:
 
-        temp_query = f"SELECT * FROM pe_posts WHERE username = '{self.username()}';"
+        temp_query = f"SELECT * FROM pe_posts WHERE username = '{await self.username()}';"
         query_result = pe_database.query_single(temp_query)
 
         return len(query_result) > 0
     
 
-    def database_kudo_array(self) -> List[Tuple[int, int]]:
+    async def database_kudo_array(self) -> List[Tuple[int, int]]:
         
         if self._database_kudo_array is not None:
             return self._database_kudo_array
         
-        self.update_from_database_kudo()
+        await self.update_from_database_kudo()
         if self._database_kudo_array is None:
             raise ValueError("_database_kudo_array should not be None after update from kudo database.")
 
         return self._database_kudo_array
         
 
-    def level(self) -> int:
+    async def level(self) -> int:
         """
         Returns the level of the member. This is only `number_of_solves // 25`.
         """
         if self._level is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._level
 
 
-    def solve_bonus_array(self) -> List[bool]:
+    async def solve_bonus_array(self) -> List[bool]:
 
         if self._pe_bonus_array is not None:
             return self._pe_bonus_array
         elif self._database_bonus_array is not None:
             return self._database_bonus_array
 
-        self.update_from_friend_list()
+        await self.update_from_friend_list()
         if self._pe_bonus_array is None:
             raise ValueError("_pe_bonus_array should not be None after update from friend list.")
 
         return self._pe_bonus_array
 
 
-    def pe_solve_bonus_array(self) -> List[bool]:
+    async def pe_solve_bonus_array(self) -> List[bool]:
 
         if self._pe_bonus_array is not None:
             return self._pe_bonus_array
 
-        self.update_from_friend_list()
+        await self.update_from_friend_list()
         if self._pe_bonus_array is None:
             raise ValueError("_pe_bonus_array should not be None after update from friend list.")
 
         return self._pe_bonus_array
 
 
-    def database_solve_bonus_array(self) -> List[bool]:
+    async def database_solve_bonus_array(self) -> List[bool]:
 
         if self._database_bonus_array is not None:
             return self._database_bonus_array
 
-        self.update_from_database()
+        await self.update_from_database()
         if self._database_bonus_array is None:
             raise ValueError("_database_bonus_array should not be None after update from database.")
 
         return self._database_bonus_array
 
 
-    def discord_id(self) -> str:
+    async def discord_id(self) -> str:
         """
         Returns the discord ID of the member. It might be an empty string if not self.is_discord_linked()
         """
         if self._discord_id is None:
-            self.update_from_database()
+            await self.update_from_database()
         return self._discord_id
     
 
-    def position_in_discord(self) -> tuple[int, int]:
+    async def position_in_discord(self) -> tuple[int, int]:
 
         """
         Returns the position in the discord (ranking by solve count)
@@ -1455,30 +1458,30 @@ class Member:
         all_members = Member.members_database()
         valid_members = 0
 
-        if not self.is_discord_linked():
+        if not await self.is_discord_linked():
             return -1, -1
 
         member: Member
         for member in all_members:
 
-            if not member.is_discord_linked():
+            if not await member.is_discord_linked():
                 continue
             valid_members += 1
 
-            if member.solve_count() > self.solve_count():
+            if await member.solve_count() > await self.solve_count():
                 current_rank += 1
         
         return current_rank, valid_members
 
         
-    def is_discord_linked(self, connection = None, data = None) -> bool:
+    async def is_discord_linked(self, connection = None, data = None) -> bool:
 
         """
         Returns true if the account is linked to a project euler account, 
         that is, if there is an entry in the database with the corresponding discord_id
         """
         
-        dis_id = self.discord_id()
+        dis_id = await self.discord_id()
         if dis_id == "":
             return False
         
@@ -1504,38 +1507,38 @@ class Member:
         return len(pe_database.query_option(temp_query, connection)) >= 1
         
 
-    def have_solves_changed(self) -> bool:
+    async def have_solves_changed(self) -> bool:
         """
         Are the solves of this member not the same on the website and in the database.
         """
-        return not (self.pe_solve_count() == self.database_solve_count())
+        return not (await self.pe_solve_count() == await self.database_solve_count())
     
 
-    def have_awards_changed(self) -> bool:
+    async def have_awards_changed(self) -> bool:
         """
         Are the awards of this member not the same on the website and in the database.
         """
-        return not (self.pe_award_count() == self.database_award_count())
+        return not (await self.pe_award_count() == await self.database_award_count())
     
 
-    def have_kudos_changed(self) -> bool:
+    async def have_kudos_changed(self) -> bool:
         """
         Are the kudos of this member not the same on the website and in the database.
         """
-        return not (self.pe_kudo_count() == self.database_kudo_count())
+        return not (await self.pe_kudo_count() == await self.database_kudo_count())
     
 
-    def get_new_solves(self) -> List[Solve]:
+    async def get_new_solves(self) -> List[Solve]:
 
         """
         Returns a list of the problems that have just been solved by a member.
         """
 
-        if not self.have_solves_changed():
+        if not await self.have_solves_changed():
             return []
         
-        project_euler_data = self.pe_solve_array()
-        database_data = self.database_solve_array()
+        project_euler_data = await self.pe_solve_array()
+        database_data = await self.database_solve_array()
         
         max_len = len(project_euler_data)
         
@@ -1560,17 +1563,17 @@ class Member:
         return new_solves
     
 
-    def get_new_kudos(self) -> List[Tuple[int, int]]:
+    async def get_new_kudos(self) -> List[Tuple[int, int]]:
 
         """
         Returns a list of tuples. Each element has the format: (post_id, new_number_of_kudos)
         """
 
-        if not self.have_kudos_changed():
+        if not await self.have_kudos_changed():
             return []
         
-        project_euler_data = self.pe_kudo_array()
-        database_data = self.database_kudo_array()
+        project_euler_data = await self.pe_kudo_array()
+        database_data = await self.database_kudo_array()
         
         database_dict = {el[0]: el[1] for el in database_data}
         
@@ -1589,18 +1592,18 @@ class Member:
         return new_kudos
     
 
-    def get_new_awards(self) -> Tuple[List[int], List[int], List[int]]:
+    async def get_new_awards(self) -> Tuple[List[int], List[int], List[int]]:
 
         """
         Get a 3-tuple (one element for each category of awards) each element containing a list of the indexes
         of newly acquired awards.
         """
 
-        if not self.have_awards_changed():
+        if not await self.have_awards_changed():
             return [], [], []
         
-        project_euler_data = self.pe_award_array()
-        database_data = self.database_award_array()
+        project_euler_data = await self.pe_award_array()
+        database_data = await self.database_award_array()
         
         first_len = len(project_euler_data[0])
         second_len = len(project_euler_data[1])
@@ -1616,8 +1619,9 @@ class Member:
         if len(database_data) != 3:
 
             if len(database_data) == 2: # it probably comes from someone who linked a long time ago
-                self.push_awards_to_database()
-                log.info(f"Made {self.username()} switch from old awards format to new one, not announcing anything. (2 -> 3)")
+                await self.push_awards_to_database()
+                username = await self.username()
+                log.info(f"Made {username} switch from old awards format to new one, not announcing anything. (2 -> 3)")
                 return ([], [], [])
 
             raise Exception("database data is not long enough", database_data, self._username)
@@ -1628,59 +1632,63 @@ class Member:
                     if project_euler_data[category][i] == True and database_data[category][i] == False:
                         new_awards[category].append(i)
             except Exception as e:
-                phone_api.bot_crashed(f"Could not add awards properly, {self.username()}, {e}")
+                username = await self.username()
+                phone_api.bot_crashed(f"Could not add awards properly, {username}, {e}")
             
         return new_awards
         
 
-    def push_kudo_to_database(self) -> None:
+    async def push_kudo_to_database(self) -> None:
 
         """
         Updates the kudo database according to the kudos on Project Euler's kudo page.
         """
 
-        kudos = self.pe_kudo_array()
+        kudos = await self.pe_kudo_array()
         
         formatted = "|".join(list(map(
             lambda el: "n".join(list(map(str, el))), kudos
         )))
 
-        is_in_database_query = f"SELECT * FROM pe_posts WHERE username = '{self.username()}';"
+        username = await self.username()
+        kudo_count = await self.kudo_count()
+
+        is_in_database_query = f"SELECT * FROM pe_posts WHERE username = '{username}';"
         is_in_database_response = pe_database.query_single(is_in_database_query)
         is_in_database = len(is_in_database_response) > 0
 
         if is_in_database:
-            temp_query = f"UPDATE pe_posts SET kudos = {self.kudo_count()}, posts_list = '{formatted}' \
-                WHERE username = '{self.username()}';"
+            temp_query = f"UPDATE pe_posts SET kudos = {kudo_count}, posts_list = '{formatted}' \
+                WHERE username = '{username}';"
         else:
             temp_query = f"INSERT INTO pe_posts (username, posts_number, kudos, posts_list) \
-                VALUES ('{self.username()}', 0, {self.kudo_count()}, '{formatted}');"
+                VALUES ('{username}', 0, {kudo_count}, '{formatted}');"
 
         pe_database.query_single(temp_query)
 
 
-    def push_basics_to_database(self) -> None:
+    async def push_basics_to_database(self) -> None:
 
         """
         Updates the database with basic information that were collected about the member.
         """
 
-        solved = self.pe_solve_count()
+        solved = await self.pe_solve_count()
         solve_list = "".join([
-            "01"[boolean] for boolean in self.pe_solve_array()
+            "01"[boolean] for boolean in await self.pe_solve_array()
         ])
         solve_bonus_list = "".join([
-            "01"[boolean] for boolean in self.pe_solve_bonus_array()
+            "01"[boolean] for boolean in await self.pe_solve_bonus_array()
         ])
         
-        username = self.username()
-        nickname = self.nickname()
-        country = self.country()
-        language = self.language()
+        username = await self.username()
+        nickname = await self.nickname()
+        country = await self.country()
+        language = await self.language()
         
         if not self.is_account_in_database():
-            awards_array = self.pe_award_array()
-            awards = self.pe_award_count()
+            awards_array = await self.pe_award_array()
+            awards = await self.pe_award_count()
             awards_list = "|".join([
                 "".join(["01"[b] for b in awards_array[0]]),
                 "".join(["01"[b] for b in awards_array[1]]),
@@ -1701,16 +1709,16 @@ class Member:
         pe_database.query_single(temp_query)
         
 
-    def push_awards_to_database(self) -> None:
+    async def push_awards_to_database(self) -> None:
 
         """
         Updates the database with information about the awards of the member.
         """
 
-        username = self.username()
+        username = await self.username()
         
-        awards_array = self.pe_award_array()
-        awards = self.pe_award_count()
+        awards_array = await self.pe_award_array()
+        awards = await self.pe_award_count()
         awards_list = "|".join([
             "".join(["01"[b] for b in awards_array[0]]),
             "".join(["01"[b] for b in awards_array[1]]),
@@ -1724,13 +1732,13 @@ class Member:
         
 
     @staticmethod
-    def members_friends() -> List['Member']:
+    async def members_friends() -> List['Member']:
 
         """
         Returns a list of all the members in the friend list of the bot on project euler
         """
 
-        project_euler_data = ProjectEulerRequest("https://projecteuler.net/minimal=friends", True)
+        project_euler_data = await ProjectEulerRequest.fetch("https://projecteuler.net/minimal=friends", True)
         
         usernames = list(map(
             lambda x: x.split("##")[0],
@@ -1745,8 +1753,7 @@ class Member:
                 continue
             
             current = Member(username)
-            current.update_from_friend_list(project_euler_data)
-            
+            await current.update_from_friend_list(project_euler_data)
             result_list.append(current)
             
         return result_list
@@ -1782,14 +1789,14 @@ class Member:
     
 
     @staticmethod
-    def members() -> List['Member']:
+    async def members() -> List['Member']:
         
         """ 
         Returns a list of all the members that the bot has ever heard of. A list of `pe_api.Member` objects 
         """
 
         database_data = pe_database.query_single("SELECT * FROM members;")
-        project_euler_data = ProjectEulerRequest("https://projecteuler.net/minimal=friends")
+        project_euler_data = await ProjectEulerRequest.fetch("https://projecteuler.net/minimal=friends")
 
         database_usernames = list(map(
             lambda member: member["username"],
@@ -1811,7 +1818,7 @@ class Member:
             current = Member(_username=username)
             
             try:
-                current.update_from_friend_list(project_euler_data)
+                await current.update_from_friend_list(project_euler_data)
             except Exception as e:
                 if str(e) == "Member not found in friend list":
                     continue
@@ -1819,46 +1826,47 @@ class Member:
                 continue
 
             if username in database_usernames:
-                current.update_from_database(data = database_data)
+                await current.update_from_database(data = database_data)
                 
             result_list.append(current)
             
         return result_list
     
 
-    def solved_problems(self) -> List[int]:
+    async def solved_problems(self) -> List[int]:
         """
         Returns a list like [102, 105] if the member has solved only 102 and 105
         """       
         solves = []
-        for index, solved in enumerate(self.solve_array()):
+        for index, solved in enumerate(await self.solve_array()):
             if solved:
                 solves.append(index + 1)
         return solves
 
 
-    def unsolved_problems(self) -> List[int]:
+    async def unsolved_problems(self) -> List[int]:
         """
         Returns a list like [763] if the member only has 763 left to
         """
         not_solves = []
-        for index, solved in enumerate(self.solve_array()):
+        for index, solved in enumerate(await self.solve_array()):
             if not solved:
                 not_solves.append(index + 1)
         return not_solves
     
 
-    def make_problem_unsolved(self, problem: int) -> None:
+    async def make_problem_unsolved(self, problem: int) -> None:
 
         """
         Takes a member and removes one its solves. Particularly useful for testing and debugging.
         """
 
-        cur_solves = "".join(["01"[b] for b in self.database_solve_array()])
+        cur_solves = "".join(["01"[b] for b in await self.database_solve_array()])
         cur_solves = cur_solves[:(problem - 1)] + "0" + cur_solves[(problem - 1) + 1:]
 
-        temp_query = f"UPDATE members SET solve_list = '{cur_solves}', solved = {self.solve_count() - 1} \
-            WHERE username = '{self.username()}';"
+        username = await self.username()
+        temp_query = f"UPDATE members SET solve_list = '{cur_solves}', solved = {await self.solve_count() - 1} \
+            WHERE username = '{username}';"
 
         pe_database.query_single(temp_query)
         
@@ -1882,7 +1890,6 @@ class Challenge:
 
         self.solved: bool = solved
         self.expired: bool = expired
-        
         
         
     @staticmethod
@@ -1912,7 +1919,16 @@ class Challenge:
             output_data.append(challenge)
             
         return output_data
-            
+    
+
+    @staticmethod
+    def all_active_challenges() -> List['Challenge']:
+        """
+        Returns all challenges that are still possible to achieve
+        """
+        query = f"SELECT * FROM challenges WHERE accepted=1 AND finished=0;"
+        return Challenge.all_challenges(query)
+    
 
     @staticmethod
     def create(from_member: Member, to_member: Member, problem: Problem, hours_duration: int) -> 'Challenge':
@@ -1967,6 +1983,24 @@ class Challenge:
         pe_database.query_single(query)
         self.expired = True
 
+
+    def check_if_expired(self) -> bool:
+        """
+        Check whether the challenge has passed its maximum allowed time.
+        If it has, mark it as expired both in memory and in the database.
+        """
+        if self.expired:
+            return True
+
+        if not self.accepted or self.unix_accept_time is None:
+            return False
+
+        max_possible_time = self.unix_accept_time + self.hours_duration * 3600
+        if now_unix() > max_possible_time:
+            self.set_as_expired()
+
+        return self.expired
+
     
     @staticmethod
     def get_by_id(challenge_id: int) -> Optional['Challenge']:
@@ -2003,9 +2037,9 @@ class Challenge:
         
 
 
-def update_process() -> Optional[List[Dict[str, Any]]]:
+async def update_process() -> Optional[List[Dict[str, Any]]]:
     
-    members: List[Member] = Member.members()
+    members: List[Member] = await Member.members()
     skipped_member_count = 0
 
     new_changes = []
@@ -2013,17 +2047,18 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
     
     for member in members:
         
-        if member.have_solves_changed():
+        if await member.have_solves_changed():
             
-            new_solves = member.get_new_solves()
-            log.info(f"New solve(s) for {member.username()}: {[s.problem_id() for s in new_solves]}")
-            member.push_basics_to_database()
+            new_solves = await member.get_new_solves()
+            member_username = await member.username()
+            log.info(f"New solve(s) for {member_username}: {[s.problem_id() for s in new_solves]}")
+            await member.push_basics_to_database()
 
             new_awards = None
-            if member.have_awards_changed():
-                new_awards = member.get_new_awards()
-                log.info(f"New award(s) for {member.username()}: {new_awards}")
-                member.push_awards_to_database()
+            if await member.have_awards_changed():
+                new_awards = await member.get_new_awards()
+                log.info(f"New award(s) for {member_username}: {new_awards}")
+                await member.push_awards_to_database()
             
             new_changes.append({"member": member, "solves": new_solves, "awards": new_awards})
             
@@ -2035,13 +2070,13 @@ def update_process() -> Optional[List[Dict[str, Any]]]:
     return new_changes
 
 
-def push_solve_to_database(member: Member, solve: Problem):
+async def push_solve_to_database(member: Member, solve: Problem):
 
-    pb_def = problem_def(solve.problem_id())
+    pb_def = await problem_def(solve.problem_id())
     position = pb_def[3]
 
     temp_query = "INSERT INTO solves (member, problem, solve_date, position) VALUES ('{0}', {1}, datetime('now'), {2})"
-    temp_query = temp_query.format(member.username(), solve.problem_id(), position)
+    temp_query = temp_query.format(await member.username(), solve.problem_id(), position)
     pe_database.query_single(temp_query)
 
 
@@ -2051,8 +2086,8 @@ def push_solve_to_database(member: Member, solve: Problem):
 
 # Return array of the form ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 # Careful as all values in the array are string, not ints
-def problem_def(n):
-    data = ProjectEulerRequest(BASE_URL.format("problems")).response
+async def problem_def(n):
+    data = (await ProjectEulerRequest.fetch(BASE_URL.format("problems"))).response
     lines = data.split("\n")
     pb = lines[n].replace("\r", "")
     specs = pb.split("##")
@@ -2062,19 +2097,19 @@ def problem_def(n):
 # Return array of the form [problem_1, problem_2, ...., problem_last]
 # With each problem being of the kind ['n', 'Problem title', Unix Timestamp of publish, 'nb of solves', '0']
 # Careful as all values in the array are string, not ints
-def problems_list():
-    data = ProjectEulerRequest(BASE_URL.format("problems")).response.split("\n")
+async def problems_list():
+    data = (await ProjectEulerRequest.fetch(BASE_URL.format("problems"))).response.split("\n")
     data = list(map(lambda element: element.replace("\r", "").split("##"), data))
     return data
 
 
 # Return last problem available, including the ones in the recent tab
-def last_problem():
-    data = ProjectEulerRequest(BASE_URL.format("problems")).response
+async def last_problem():
+    data = (await ProjectEulerRequest.fetch(BASE_URL.format("problems"))).response
     return len(data.split("\n")) - 2
 
 
-def last_problem_database():
+def last_problem_database() -> int:
     data = pe_database.query_single("SELECT MAX(len) AS most_solve FROM (SELECT LENGTH(solve_list) AS len FROM members) AS T;")
     return data[0]["most_solve"]
 
@@ -2094,27 +2129,29 @@ def project_euler_username(discord_id, connection=None) -> str:
 
 # Essentially does the same thing as get_all_members_who_solved, but returns the entire profiles
 # Returns a list with format [[username1: str, discord_id1: str], [username2: str, discord_id2: str], ....]
-def get_all_discord_profiles_who_solved(problem: int):
+async def get_all_discord_profiles_who_solved(problem: int):
 
     solvers = []
 
     try:
-        members: List[Member] = Member.members()
+        members: List[Member] = await Member.members()
     except Exception as _:
         members: List[Member] = Member.members_database()
 
     for member in members:
 
-        if member.is_discord_linked() and member.has_solved(problem):
-            solvers.append([member.username(), member.discord_id()])
+        if await member.is_discord_linked() and await member.has_solved(problem):
+            username = await member.username()
+            discord_id = await member.discord_id()
+            solvers.append([username, discord_id])
 
     return solvers
 
 
 # return a list of all the names of the awards
-def get_awards_specs():
+async def get_awards_specs():
     url = NOT_MINIMAL_BASE_URL.format("progress;show=awards")
-    data = ProjectEulerRequest(url).response
+    data = (await ProjectEulerRequest.fetch(url)).response
     soup = BeautifulSoup(data, 'html.parser')
 
     awards_container = soup.find(id="problem_solving_awards_section").find_all("div", recursive=False)
@@ -2164,11 +2201,11 @@ def get_global_solves_in_database():
 
 
 # Get the current global stats on the website
-def get_global_stats():
+async def get_global_stats():
 
     # Basic script to get the html code on a page
     problem_url = NOT_MINIMAL_BASE_URL.format("problem_analysis")
-    problem_data = ProjectEulerRequest(problem_url).response
+    problem_data = (await ProjectEulerRequest.fetch(problem_url)).response
     problem_soup = BeautifulSoup(problem_data, 'html.parser')
 
     # This tag represents the column we wants
@@ -2181,7 +2218,7 @@ def get_global_stats():
     
     # Again, basic requests to get html code
     level_url = NOT_MINIMAL_BASE_URL.format("levels")
-    level_data = ProjectEulerRequest(level_url).response
+    level_data = (await ProjectEulerRequest.fetch(level_url)).response
     level_soup = BeautifulSoup(level_data, 'html.parser')
 
     # Format all this data
@@ -2193,7 +2230,7 @@ def get_global_stats():
 
     # Basic script to get the awards stats
     award_url = NOT_MINIMAL_BASE_URL.format("awards")
-    award_data = ProjectEulerRequest(award_url).response
+    award_data = (await ProjectEulerRequest.fetch(award_url)).response
     award_soup = BeautifulSoup(award_data, 'html.parser')
 
     # Formatting the data
@@ -2207,7 +2244,7 @@ def get_global_stats():
 
 
 # Update the database with global statistics
-def update_global_stats():
+async def update_global_stats():
 
     # Open connection to the database
     connection = pe_database.open_connection()
@@ -2231,7 +2268,7 @@ def update_global_stats():
         return False
 
     # Get today's statistics
-    problem_count, level_count, award_count = get_global_stats()
+    problem_count, level_count, award_count = await get_global_stats()
 
     # Compute the difference for each stat
     problem_diff = problem_count - previous_data["solves_count"]
@@ -2259,10 +2296,10 @@ def update_global_stats():
     return True # Everything went fine
 
 
-def get_fastest_solvers(problem: int):
+async def get_fastest_solvers(problem: int):
 
     page_url = NOT_MINIMAL_BASE_URL.format(f"fastest={problem}")
-    solvers_data = ProjectEulerRequest(page_url).response
+    solvers_data = (await ProjectEulerRequest.fetch(page_url)).response
     solvers_soup = BeautifulSoup(solvers_data, 'html.parser')
 
     if "No data available" in solvers_soup.text:
@@ -2322,9 +2359,9 @@ def get_fastest_solvers(problem: int):
     return data
 
 
-def update_fastest_solves(starting_problem: int = 277):
+async def update_fastest_solves(starting_problem: int = 277):
 
-    last_pb = last_problem()
+    last_pb = await last_problem()
 
     data_filename = "saved_data/fastest_solves.json"
 
@@ -2337,7 +2374,7 @@ def update_fastest_solves(starting_problem: int = 277):
 
     for problem in range(starting_problem, last_pb + 1):
         
-        data = get_fastest_solvers(problem)
+        data = await get_fastest_solvers(problem)
         whole_data[problem] = data
         
         log.info(problem)

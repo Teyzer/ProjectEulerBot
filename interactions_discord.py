@@ -124,7 +124,7 @@ def problem_thread_view(problem_number: int):
         
         await interaction.response.defer()
 
-        allowed_members = pe_api.get_all_discord_profiles_who_solved(problem=problem_number)
+        allowed_members = await pe_api.get_all_discord_profiles_who_solved(problem=problem_number)
         allowed_discord_ids = list(map(lambda element: int(element[1]), allowed_members))
 
         # If the user did not solve, send an "ephemeral" message that only them will be able to sees
