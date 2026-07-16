@@ -284,7 +284,7 @@ async def command_profile(ctx, member: discord.User):
     file_path = pe_image.generate_profile_image(
         await m.username(),
         await m.solve_count(),
-        len(m.solve_array()),
+        len(await m.solve_array()),
         rank_in_discord,
         people_in_discord,
         recent_solves,
