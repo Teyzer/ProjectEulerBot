@@ -355,7 +355,7 @@ async def command_kudos(ctx, member: discord.User):
 
     pe_member = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    if not pe_member.is_discord_linked():
+    if not await pe_member.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
     
     if await pe_member.private() and await pe_member.discord_id() != str(ctx.author.id):
