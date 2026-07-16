@@ -814,7 +814,7 @@ async def command_events_data(ctx, event: str):
         
         solves_with_color = list(map(lambda x: (x, (220, 220, 220)), solves))
         
-        grid_image = pe_image.project_euler_grid(solves_with_color)
+        grid_image = pe_image.project_euler_grid(solves_with_color, await pe_api.last_problem())
         fls.append(grid_image)
 
         await ctx.respond("", file=discord.File(fls[1]))
