@@ -476,7 +476,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    search = re.finditer("#(\d+)", message.content)
+    search = re.finditer(r"#(\d+)", message.content)
     message_problems = set([int(k.group(0)[1:]) for k in search if k.group(0)[1:].isnumeric()])
     for problem_id in itertools.islice(message_problems, 10):
         if problem_id <= 0 or problem_id > await pe_api.last_problem():
