@@ -401,7 +401,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
-    problem_specs = pe_api.Problem.complete_list()
+    problem_specs = await pe_api.Problem.complete_list()
     problem_list = [problem_specs[i - 1] for i in await m.unsolved_problems()]
 
     async def sort_method_key(problem: pe_api.Problem, method: str):
