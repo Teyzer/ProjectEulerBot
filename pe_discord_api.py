@@ -947,7 +947,7 @@ async def command_leaderboard(ctx):
 
     await ctx.defer()
 
-    leaderboard_data = [(m.username_option(), m.solve_count()) for m in pe_api.Member.members()]
+    leaderboard_data = [(await m.username_option(), await m.solve_count()) for m in await pe_api.Member.members()]
     return await inters.leaderboard_page(ctx, leaderboard_data, True, True, 10)
 
 
