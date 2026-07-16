@@ -309,7 +309,7 @@ async def command_link(ctx, username: str):
         sentence = f"Your discord account is already linked to the account `{database_discord_user[0]['username']}`, type /unlink to unlink it"
         return await ctx.respond(sentence)
 
-    users = pe_database.query_single(f"SELECT * FROM members WHERE username = '{username}';")
+    users = pe_database.query_single("SELECT * FROM members WHERE username = ?;", (username,))
     if len(users) == 0:
         return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nThen ensure your account is not unlisted.\nIf you think this is a mistake, send a DM to <@439143335932854272>.")
 
@@ -317,8 +317,7 @@ async def command_link(ctx, username: str):
     if str(user["discord_id"]) != "":
         return await ctx.respond(f"This account is already linked to <@{user['discord_id']}>")
 
-    temp_query = f"UPDATE members SET discord_id = '{discord_user_id}' WHERE username = '{username}'"
-    pe_database.query_single(temp_query)
+    pe_database.query_single("UPDATE members SET discord_id = ? WHERE username = ?", (str(discord_user_id), username))
 
     m = pe_api.Member(_username = username)
     await update_member_roles(m)

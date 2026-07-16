@@ -12,10 +12,10 @@ DATABASE_FILE = None
 DB_TOTAL_REQUESTS = 0
 
 
-def query(_query: str, connection: Connection) -> Optional[List[Dict[str, Any]]]:
+def query(_query: str, connection: Connection, parameters = ()) -> Optional[List[Dict[str, Any]]]:
 
     cur = connection.cursor()
-    res = cur.execute(_query)
+    res = cur.execute(_query, parameters)
     connection.commit()
 
     if res.description is not None:
@@ -31,20 +31,20 @@ def query(_query: str, connection: Connection) -> Optional[List[Dict[str, Any]]]
     return data
 
 
-def query_option(_query: str, connection: Optional[Connection] = None) -> Optional[List[Dict[str, Any]]]:
+def query_option(_query: str, connection: Optional[Connection] = None, parameters = ()) -> Optional[List[Dict[str, Any]]]:
     
     if connection is not None:
-        return query(_query, connection=connection)
+        return query(_query, connection=connection, parameters=parameters)
 
     connection = sqlite3.connect(f"databases/{DATABASE_FILE}")
-    data = query(_query, connection=connection)
+    data = query(_query, connection=connection, parameters=parameters)
     connection.close()
 
     return data
 
 
-def query_single(_query: str) -> Optional[List[Dict[str, Any]]]:
-    return query_option(_query)
+def query_single(_query: str, parameters = ()) -> Optional[List[Dict[str, Any]]]:
+    return query_option(_query, parameters=parameters)
 
 
 def open_connection() -> Connection:
