@@ -661,7 +661,7 @@ async def command_thread(ctx, problem: int):
     
     # Get the list of the threads objects on the server where the command was used
     available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
-    # print(available_threads)
+
     thread_name = pe_global.THREAD_DEFAULT_NAME_FORMAT.format(problem)
 
     try:
