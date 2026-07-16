@@ -1161,19 +1161,18 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
 @bot.slash_command(name="privacy-settings")
 @option("setting", description="What privacy you want to be associated with your account", choices=["Public", "Private"])
 @pe_decorators.command
-@pe_decorators.command
 async def command_privacy_settings(ctx, setting: str):
 
     m = pe_api.Member(_discord_id = ctx.author.id)
 
-    if not m.is_discord_linked():
+    if not await m.is_discord_linked():
         return await ctx.respond("Please first link to an account to use this command.")
 
-    if setting == "Public" and m.private():
-        m.push_privacy_to_database(False)
+    if setting == "Public" and await m.private():
+        await m.push_privacy_to_database(False)
 
-    if setting == "Private" and not m.private():
-        m.push_privacy_to_database(True)
+    if setting == "Private" and not await m.private():
+        await m.push_privacy_to_database(True)
 
     return await ctx.respond(f"Your profile has successfully been switched to `{setting}`")
 
