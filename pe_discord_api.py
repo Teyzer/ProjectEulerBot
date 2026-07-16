@@ -1305,11 +1305,11 @@ async def command_guess_difficulty_all(ctx, neighbors: int = 5):
     for problem_id in range(last_problem - 9, last_problem + 1):
         
         problem_obj = pe_api.Problem(problem_id)        
-        guessed_difficulty = problem_obj.guess_difficulty()
-        relative_guessed_difficulty = (100 * guessed_difficulty) // pe_api.Problem.difficulties_count()
+        guessed_difficulty = await problem_obj.guess_difficulty()
+        relative_guessed_difficulty = (100 * guessed_difficulty) // await pe_api.Problem.difficulties_count()
 
-        digit_len = len(str(pe_api.Problem.difficulties_count()))
-        answer_text += f"{problem_obj.problem_id()}: {guessed_difficulty:{digit_len}}/{pe_api.Problem.difficulties_count()} or {relative_guessed_difficulty:3}% ({problem_obj.name()})\n"
+        digit_len = len(str(await pe_api.Problem.difficulties_count()))
+        answer_text += f"{problem_obj.problem_id()}: {guessed_difficulty:{digit_len}}/{await pe_api.Problem.difficulties_count()} or {relative_guessed_difficulty:3}% ({await problem_obj.name()})\n"
 
     answer_text += "```"
     return await ctx.respond(answer_text)
