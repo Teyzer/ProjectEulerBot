@@ -649,30 +649,30 @@ async def command_thread(ctx, problem: int):
 
     await ctx.defer()
 
-    try:
-        last_pb = await pe_api.Problem.last_problem()
-    except Exception as _:
-        last_pb = pe_api.last_problem_database()
+    last_pb = pe_api.last_problem_database()
+    if problem > last_pb:
+        try:
+            last_pb = await pe_api.Problem.last_problem()
+        except Exception as _:
+            pass
     
     # Just to ensure there's no unused thread
     if problem > last_pb:
         return await ctx.respond("This problem has not been published yet. Please try another one.")
-    
-    # Get the list of the threads objects on the server where the command was used
-    available_threads = await get_available_threads(ctx.guild.id, ctx.channel.id)
 
     thread_name = pe_global.THREAD_DEFAULT_NAME_FORMAT.format(problem)
+    thread_object, problem_name = await asyncio.gather(
+        get_thread_by_name(ctx.guild.id, ctx.channel.id, thread_name),
+        pe_api.Problem(problem).name(),
+        return_exceptions=True
+    )
+    if isinstance(thread_object, Exception):
+        raise thread_object
+    optional_problem_name = "Failed to retrieve problem name" if isinstance(problem_name, Exception) else f"'{problem_name.replace('$', '*')}'"
 
-    try:
-        problem_object = pe_api.Problem(problem)
-        problem_name = (await problem_object.name()).replace('$', '*')
-        optional_problem_name = f"'{problem_name}'"
-    except Exception as _:
-        optional_problem_name = "Failed to retrieve problem name"
-
-    # If a thread already exists (check only with the name), then simply create a new link to it 
-    if thread_name in list(map(lambda element: element.name, available_threads)):
-        button_view = inters.problem_thread_view(problem_number=problem)
+    # If a thread already exists (check only with the name), then simply create a new link to it
+    if thread_object is not None:
+        button_view = inters.problem_thread_view(problem_number=problem, thread_id=thread_object.id)
         response_text = f"A thread has already been opened for problem #{problem} ({optional_problem_name}). You can join it here:"
         return await ctx.respond(response_text, view=button_view)
     
@@ -684,16 +684,13 @@ async def command_thread(ctx, problem: int):
             break
     
     # Then create the thread in it
-    thread_object = await adapted_channel.create_thread(name=thread_name, type=discord.ChannelType.private_thread, auto_archive_duration=60)
-    
-    # Make it impossible for non-moderator to invite people 
-    await thread_object.edit(invitable=False)
+    thread_object = await adapted_channel.create_thread(name=thread_name, type=discord.ChannelType.private_thread, auto_archive_duration=60, invitable=False)
 
     # Send the first message of the thread
     await thread_object.send(f"Start of the discussion for problem #{problem}, only opened to the solvers :)")
     
     # Retrieve the button object with the correct problem numbers
-    button_view = inters.problem_thread_view(problem_number=problem)
+    button_view = inters.problem_thread_view(problem_number=problem, thread_id=thread_object.id)
 
     # Send the button
     await ctx.respond(f"Click the button below to join the appropriate thread! (Problem #{problem}: {optional_problem_name})", view=button_view)
@@ -1492,6 +1489,25 @@ async def get_available_threads(guild_id: int, channel_id: int) -> list:
         threads.append(thread_object)
 
     return threads
+
+
+async def get_thread_by_name(guild_id: int, channel_id: int, thread_name: str):
+
+    if int(guild_id) == pe_global.PROJECT_EULER_SERVER:
+        channel_id = pe_global.THREADS_CHANNEL
+
+    guild = bot.get_guild(int(guild_id))
+    channel = guild.get_channel(int(channel_id))
+
+    for thread in guild.threads:
+        if thread.parent_id == channel.id and thread.name == thread_name:
+            return thread
+
+    async for thread in channel.archived_threads(private=True, limit=None):
+        if thread.name == thread_name:
+            return thread
+
+    return None
 
 
 async def async_set_bot_status(choice: int, crash_message: Optional[str] = None) -> None:
