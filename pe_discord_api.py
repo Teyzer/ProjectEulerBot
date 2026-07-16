@@ -431,7 +431,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     problems = problems[:display_nb]
 
     async def format_problem(pb: pe_api.Problem):
-        p_id = await pb.problem_id()
+        p_id = pb.problem_id()
         solves = await pb.solves()
         name = await pb.name()
         return f"Problem #{p_id}: '{name}' solved by {solves} members"
