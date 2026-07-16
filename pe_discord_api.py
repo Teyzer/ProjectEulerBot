@@ -1381,7 +1381,7 @@ async def problemsfrom_command(ctx, author: discord.User, user: discord.User = N
         return await ctx.respond("The published problems from this user are not known.")
 
     member = pe_api.Member(_discord_id=member_id)
-    solves = list(map(lambda n: (n, member.has_solved(n)), pe_global.AUTHORS[author_id]))
+    solves = [(n, await member.has_solved(n)) for n in pe_global.AUTHORS[author_id]]
 
     solved = []
     not_solved = []
@@ -1395,7 +1395,7 @@ async def problemsfrom_command(ctx, author: discord.User, user: discord.User = N
 
     author_pe = pe_api.Member(_discord_id=author.id)
 
-    return await ctx.respond(f"`{member.username_option()}` has solved {percentage}% of `{author_pe.username_option()}`'s problems. (Solved {solved}, missing {not_solved}).")
+    return await ctx.respond(f"`{await member.username_option()}` has solved {percentage}% of `{await author_pe.username_option()}`'s problems. (Solved {solved}, missing {not_solved}).")
 
 
 
