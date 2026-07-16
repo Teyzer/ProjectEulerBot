@@ -1064,14 +1064,14 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
         return await ctx.respond(help_text)
 
 
-    current_list = pe_api.Problem.complete_list()
+    current_list = await pe_api.Problem.complete_list()
 
     discord_id = ctx.author.id
     if member is not None:
         discord_id = member.id
 
     m = pe_api.Member(_discord_id = discord_id)
-    if m.private() and m.discord_id() != str(ctx.author.id):
+    if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
     
     arguments = options.upper().split("|")
@@ -1095,7 +1095,7 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
         for command in arguments:
 
             if "%DIFFICULTY" in command:
-                current_list = list(filter(lambda x: x.difficulty() is not None, current_list))
+                current_list = [problem for problem in current_list if await problem.difficulty() is not None]
             
             if (">" in command) or ("<" in command) or ("=" in command):
 
@@ -1113,9 +1113,10 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
 
                         [parameter, value] = list(command.split(operator))
                         
-                        current_list = list(filter(
-                            lambda pb: possible_operators[operator](weak_eval(parameter, pb), value)
-                        , current_list))
+                        current_list = [
+                            problem for problem in current_list
+                            if possible_operators[operator](await weak_eval(parameter, problem), value)
+                        ]
 
                         commands_correctly_treated += 1
                         break
@@ -1125,22 +1126,24 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
                 desc = "DESC" in command
 
                 if "%DIFFICULTY" in command:
-                    current_list = sorted(current_list, key=lambda pb: pb.difficulty(), reverse=desc)
+                    difficulties = await asyncio.gather(*(problem.difficulty() for problem in current_list))
+                    current_list = [item[0] for item in sorted(zip(current_list, difficulties), key=lambda item: item[1], reverse=desc)]
                     commands_correctly_treated += 1
                 if "%ID" in command:
                     current_list = sorted(current_list, key=lambda pb: pb.problem_id(), reverse=desc)
                     commands_correctly_treated += 1
                 if "%SOLVES" in command:
-                    current_list = sorted(current_list, key=lambda pb: pb.solves(), reverse=desc)
+                    solves = await asyncio.gather(*(problem.solves() for problem in current_list))
+                    current_list = [item[0] for item in sorted(zip(current_list, solves), key=lambda item: item[1], reverse=desc)]
                     commands_correctly_treated += 1
 
             if "LIMIT" in command:
                 limit = int(command.split("LIMIT")[1])
                 current_list = current_list[:limit]
                 commands_correctly_treated += 1
-            
+
             if "SOLVED" in command:
-                own_solves = set(m.solved_problems())
+                own_solves = set(await m.solved_problems())
                 current_list = [pb for pb in current_list if ((pb.problem_id() in own_solves) ^ ("NOT" in command))]
                 commands_correctly_treated += 1
 
@@ -1148,9 +1151,9 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
         return await ctx.respond("An error occured. Specify `help` in the options to get informations on this command.")
 
     async def formatter(problem: pe_api.Problem):
-        return f"{problem.problem_id()}: {await problem.name()} (%{await problem.difficulty()}/{await problem.solves()})" 
+        return f"{problem.problem_id()}: {await problem.name()} (%{await problem.difficulty()}/{await problem.solves()})"
 
-    text_list = "```" + "\n".join(list(map(formatter, current_list))) + "```"
+    text_list = "```" + "\n".join(await asyncio.gather(*(formatter(problem) for problem in current_list))) + "```"
     return await ctx.respond(f"Correctly executed {commands_correctly_treated} commands: {text_list}")
 
 
