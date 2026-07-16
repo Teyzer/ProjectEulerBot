@@ -1217,11 +1217,11 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
     if member is not None:
 
         pe_member = pe_api.Member(_discord_id = member.id)
-        if not pe_member.is_discord_linked():
+        if not await pe_member.is_discord_linked():
             return await ctx.respond("This user does not have a project euler account linked!")
 
-        favorite_problem = pe_member.favorite_problem()
-        reason_favorite = pe_member.reason_favorite_problem()
+        favorite_problem = await pe_member.favorite_problem()
+        reason_favorite = await pe_member.reason_favorite_problem()
 
         if favorite_problem is None:
             return await ctx.respond("This user has no favorite problem!")
@@ -1230,25 +1230,25 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
 
     else:
 
-        members = pe_api.Member.members()
+        members = await pe_api.Member.members()
         favorites: Dict[int, List[Tuple[pe_api.Member, str]]] = {}
 
         pe_member: pe_api.Member
         for pe_member in members:
 
-            favorite_id = pe_member.favorite_problem()
+            favorite_id = await pe_member.favorite_problem()
             if favorite_id is not None:
 
                 if favorite_id not in favorites:
                     favorites[favorite_id] = []
 
-                favorites[favorite_id].append((pe_member, pe_member.reason_favorite_problem()))
+                favorites[favorite_id].append((pe_member, await pe_member.reason_favorite_problem()))
 
         leaderboard_data: List[Tuple[int, str]] = []
         for favorite_id in favorites:
 
             number_of_favorites = len(favorites[favorite_id])
-            members_with_this_favorite = ", ".join(list(map(lambda x: x[0].username_option(), favorites[favorite_id])))
+            members_with_this_favorite = ", ".join([await x[0].username_option() for x in favorites[favorite_id]])
 
             leaderboard_data.append((number_of_favorites, str(favorite_id) + " - " + members_with_this_favorite))
 
