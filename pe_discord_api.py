@@ -95,7 +95,7 @@ async def major_update() -> bool:
         log.info("[(-) New problem detected, adding one zero to everyone]")
         m: pe_api.Member
         for m in await pe_api.Member.members():
-            m.push_basics_to_database()
+            await m.push_basics_to_database()
         log.info("[(+) Updated all members in the database]")
     
     # event = pe_events.eventSoPE()
@@ -284,7 +284,7 @@ async def command_profile(ctx, member: discord.User):
     file_path = pe_image.generate_profile_image(
         await m.username(),
         await m.solve_count(),
-        len(m.solve_array()),
+        len(await m.solve_array()),
         rank_in_discord,
         people_in_discord,
         recent_solves,
@@ -309,7 +309,7 @@ async def command_link(ctx, username: str):
         sentence = f"Your discord account is already linked to the account `{database_discord_user[0]['username']}`, type /unlink to unlink it"
         return await ctx.respond(sentence)
 
-    users = pe_database.query_single(f"SELECT * FROM members WHERE username = '{username}';")
+    users = pe_database.query_single("SELECT * FROM members WHERE username = ?;", (username,))
     if len(users) == 0:
         return await ctx.respond("This username is not in my friend list. Add the bot account on project euler first: 1910895_2C6CP6OuYKOwNlTdL8A5fXZ0p5Y41CZc\nThen ensure your account is not unlisted.\nIf you think this is a mistake, send a DM to <@439143335932854272>.")
 
@@ -317,8 +317,7 @@ async def command_link(ctx, username: str):
     if str(user["discord_id"]) != "":
         return await ctx.respond(f"This account is already linked to <@{user['discord_id']}>")
 
-    temp_query = f"UPDATE members SET discord_id = '{discord_user_id}' WHERE username = '{username}'"
-    pe_database.query_single(temp_query)
+    pe_database.query_single("UPDATE members SET discord_id = ? WHERE username = ?", (str(discord_user_id), username))
 
     m = pe_api.Member(_username = username)
     await update_member_roles(m)
@@ -355,7 +354,7 @@ async def command_kudos(ctx, member: discord.User):
 
     pe_member = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    if not pe_member.is_discord_linked():
+    if not await pe_member.is_discord_linked():
         return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
     
     if await pe_member.private() and await pe_member.discord_id() != str(ctx.author.id):
@@ -401,7 +400,7 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
     if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
-    problem_specs = pe_api.Problem.complete_list()
+    problem_specs = await pe_api.Problem.complete_list()
     problem_list = [problem_specs[i - 1] for i in await m.unsolved_problems()]
 
     async def sort_method_key(problem: pe_api.Problem, method: str):
@@ -477,7 +476,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    search = re.finditer("#(\d+)", message.content)
+    search = re.finditer(r"#(\d+)", message.content)
     message_problems = set([int(k.group(0)[1:]) for k in search if k.group(0)[1:].isnumeric()])
     for problem_id in itertools.islice(message_problems, 10):
         if problem_id <= 0 or problem_id > await pe_api.last_problem():
@@ -507,7 +506,7 @@ async def on_message(message):
             file_url = main_attach.url
 
             content = requests.get(file_url).text
-            file_path = pe_plot.generate_individual_graph(content, username)
+            file_path = await pe_plot.generate_individual_graph(content, username)
 
             if file_path is None:
                 await message.channel.send("I could not generate the graph, it requires to know when was each problem published and the request to the server failed.")
@@ -947,7 +946,7 @@ async def command_leaderboard(ctx):
 
     await ctx.defer()
 
-    leaderboard_data = [(m.username_option(), m.solve_count()) for m in pe_api.Member.members()]
+    leaderboard_data = [(await m.username_option(), await m.solve_count()) for m in await pe_api.Member.members()]
     return await inters.leaderboard_page(ctx, leaderboard_data, True, True, 10)
 
 
@@ -1161,19 +1160,18 @@ async def command_awards_requirements(ctx, options: str, member: discord.User = 
 @bot.slash_command(name="privacy-settings")
 @option("setting", description="What privacy you want to be associated with your account", choices=["Public", "Private"])
 @pe_decorators.command
-@pe_decorators.command
 async def command_privacy_settings(ctx, setting: str):
 
     m = pe_api.Member(_discord_id = ctx.author.id)
 
-    if not m.is_discord_linked():
+    if not await m.is_discord_linked():
         return await ctx.respond("Please first link to an account to use this command.")
 
-    if setting == "Public" and m.private():
-        m.push_privacy_to_database(False)
+    if setting == "Public" and await m.private():
+        await m.push_privacy_to_database(False)
 
-    if setting == "Private" and not m.private():
-        m.push_privacy_to_database(True)
+    if setting == "Private" and not await m.private():
+        await m.push_privacy_to_database(True)
 
     return await ctx.respond(f"Your profile has successfully been switched to `{setting}`")
 
@@ -1191,7 +1189,7 @@ async def command_set_favorite_problem(ctx, problem_id: int, reason: str):
         return await ctx.respond(f"The reason you specified contains forbidden characters. (The regex is {regex_to_match})")
 
     pe_member = pe_api.Member(_discord_id = ctx.author.id)
-    pe_member.push_favorite_to_database(problem_id, reason)
+    await pe_member.push_favorite_to_database(problem_id, reason)
 
     return await ctx.respond(f"Your favorite problem has been set to `{problem_id}`!")
 
@@ -1203,7 +1201,7 @@ async def command_remove_favorite_problem(ctx):
     await ctx.defer()
 
     pe_member = pe_api.Member(_discord_id = ctx.author.id)
-    pe_member.push_favorite_to_database(None, None)
+    await pe_member.push_favorite_to_database(None, None)
 
     return await ctx.respond("Your favorite problem has been removed!")
 
@@ -1218,11 +1216,11 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
     if member is not None:
 
         pe_member = pe_api.Member(_discord_id = member.id)
-        if not pe_member.is_discord_linked():
+        if not await pe_member.is_discord_linked():
             return await ctx.respond("This user does not have a project euler account linked!")
 
-        favorite_problem = pe_member.favorite_problem()
-        reason_favorite = pe_member.reason_favorite_problem()
+        favorite_problem = await pe_member.favorite_problem()
+        reason_favorite = await pe_member.reason_favorite_problem()
 
         if favorite_problem is None:
             return await ctx.respond("This user has no favorite problem!")
@@ -1231,25 +1229,25 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
 
     else:
 
-        members = pe_api.Member.members()
+        members = await pe_api.Member.members()
         favorites: Dict[int, List[Tuple[pe_api.Member, str]]] = {}
 
         pe_member: pe_api.Member
         for pe_member in members:
 
-            favorite_id = pe_member.favorite_problem()
+            favorite_id = await pe_member.favorite_problem()
             if favorite_id is not None:
 
                 if favorite_id not in favorites:
                     favorites[favorite_id] = []
 
-                favorites[favorite_id].append((pe_member, pe_member.reason_favorite_problem()))
+                favorites[favorite_id].append((pe_member, await pe_member.reason_favorite_problem()))
 
         leaderboard_data: List[Tuple[int, str]] = []
         for favorite_id in favorites:
 
             number_of_favorites = len(favorites[favorite_id])
-            members_with_this_favorite = ", ".join(list(map(lambda x: x[0].username_option(), favorites[favorite_id])))
+            members_with_this_favorite = ", ".join([await x[0].username_option() for x in favorites[favorite_id]])
 
             leaderboard_data.append((number_of_favorites, str(favorite_id) + " - " + members_with_this_favorite))
 
@@ -1268,15 +1266,15 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     if problem_id < 0:
         return await ctx.respond("Problem ID is out of range, I cannot evaluate the difficulty of bonus problems.")
 
-    if problem_id == 0 or problem_id > len(pe_api.Problem.complete_list()):
+    if problem_id == 0 or problem_id > len(await pe_api.Problem.complete_list()):
         return await ctx.respond("Problem ID is out of range.")
 
     problem_obj = pe_api.Problem(problem_id)
-    difficulty, nearests = problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
+    difficulty, nearests = await problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
 
-    relative_difficulty = (100 * difficulty) // pe_api.Problem.difficulties_count() 
+    relative_difficulty = (100 * difficulty) // await pe_api.Problem.difficulties_count()
 
-    answer_text = f"I expect problem #{problem_id} to have difficulty level {difficulty}/{pe_api.Problem.difficulties_count()} or {relative_difficulty}% based on its {neighbors} nearest neighbors:"
+    answer_text = f"I expect problem #{problem_id} to have difficulty level {difficulty}/{await pe_api.Problem.difficulties_count()} or {relative_difficulty}% based on its {neighbors} nearest neighbors:"
     
     answer_text += "```"
 
@@ -1306,11 +1304,11 @@ async def command_guess_difficulty_all(ctx, neighbors: int = 5):
     for problem_id in range(last_problem - 9, last_problem + 1):
         
         problem_obj = pe_api.Problem(problem_id)        
-        guessed_difficulty = problem_obj.guess_difficulty()
-        relative_guessed_difficulty = (100 * guessed_difficulty) // pe_api.Problem.difficulties_count()
+        guessed_difficulty = await problem_obj.guess_difficulty()
+        relative_guessed_difficulty = (100 * guessed_difficulty) // await pe_api.Problem.difficulties_count()
 
-        digit_len = len(str(pe_api.Problem.difficulties_count()))
-        answer_text += f"{problem_obj.problem_id()}: {guessed_difficulty:{digit_len}}/{pe_api.Problem.difficulties_count()} or {relative_guessed_difficulty:3}% ({problem_obj.name()})\n"
+        digit_len = len(str(await pe_api.Problem.difficulties_count()))
+        answer_text += f"{problem_obj.problem_id()}: {guessed_difficulty:{digit_len}}/{await pe_api.Problem.difficulties_count()} or {relative_guessed_difficulty:3}% ({await problem_obj.name()})\n"
 
     answer_text += "```"
     return await ctx.respond(answer_text)
@@ -1328,14 +1326,14 @@ async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     discord_id = user.id
     to_member: pe_api.Member = pe_api.Member(_discord_id=discord_id)
     
-    if not to_member.is_discord_linked():
+    if not await to_member.is_discord_linked():
         return await ctx.respond("This user does not have a Project Euler account linked.")
     
     from_member = pe_api.Member(_discord_id=ctx.author.id)
-    if not from_member.is_discord_linked():
+    if not await from_member.is_discord_linked():
         return await ctx.respond("You need to link your Project Euler account first.")
     
-    challenge = pe_api.Challenge.create(from_member, to_member, pe_api.Problem(problem), hours)
+    challenge = await pe_api.Challenge.create(from_member, to_member, pe_api.Problem(problem), hours)
     own_id = challenge.challenge_id
     
     response = f"The challenge has been registered, with ID {own_id}, the challenged member may accept it with /challenge-accept."
@@ -1355,10 +1353,10 @@ async def command_challenge_accept(ctx, challenge_id: int):
     if challenge is None:
         return await ctx.respond("I could not find a challenge with that ID.")
     
-    if not challenge.to_member.is_discord_linked():
+    if not await challenge.to_member.is_discord_linked():
         return await ctx.respond("I could not verify you are the person the challenge has been sent to, please verify your account is linked.")
     
-    if challenge.to_member.discord_id() != str(ctx.author.id):
+    if await challenge.to_member.discord_id() != str(ctx.author.id):
        return await ctx.respond("You're not the person challenged for that ID.") 
     
     challenge.accept()
