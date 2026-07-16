@@ -1326,14 +1326,14 @@ async def challenge_command(ctx, user: discord.User, problem: int, hours: int):
     discord_id = user.id
     to_member: pe_api.Member = pe_api.Member(_discord_id=discord_id)
     
-    if not to_member.is_discord_linked():
+    if not await to_member.is_discord_linked():
         return await ctx.respond("This user does not have a Project Euler account linked.")
     
     from_member = pe_api.Member(_discord_id=ctx.author.id)
-    if not from_member.is_discord_linked():
+    if not await from_member.is_discord_linked():
         return await ctx.respond("You need to link your Project Euler account first.")
     
-    challenge = pe_api.Challenge.create(from_member, to_member, pe_api.Problem(problem), hours)
+    challenge = await pe_api.Challenge.create(from_member, to_member, pe_api.Problem(problem), hours)
     own_id = challenge.challenge_id
     
     response = f"The challenge has been registered, with ID {own_id}, the challenged member may accept it with /challenge-accept."
@@ -1353,10 +1353,10 @@ async def command_challenge_accept(ctx, challenge_id: int):
     if challenge is None:
         return await ctx.respond("I could not find a challenge with that ID.")
     
-    if not challenge.to_member.is_discord_linked():
+    if not await challenge.to_member.is_discord_linked():
         return await ctx.respond("I could not verify you are the person the challenge has been sent to, please verify your account is linked.")
     
-    if challenge.to_member.discord_id() != str(ctx.author.id):
+    if await challenge.to_member.discord_id() != str(ctx.author.id):
        return await ctx.respond("You're not the person challenged for that ID.") 
     
     challenge.accept()

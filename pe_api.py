@@ -1931,10 +1931,10 @@ class Challenge:
     
 
     @staticmethod
-    def create(from_member: Member, to_member: Member, problem: Problem, hours_duration: int) -> 'Challenge':
-        
-        from_name = from_member.username()
-        to_name = to_member.username()
+    async def create(from_member: Member, to_member: Member, problem: Problem, hours_duration: int) -> 'Challenge':
+
+        from_name = await from_member.username()
+        to_name = await to_member.username()
         problem_id = problem.problem_id()
         
         accepted = 0
