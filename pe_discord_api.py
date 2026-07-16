@@ -1190,7 +1190,7 @@ async def command_set_favorite_problem(ctx, problem_id: int, reason: str):
         return await ctx.respond(f"The reason you specified contains forbidden characters. (The regex is {regex_to_match})")
 
     pe_member = pe_api.Member(_discord_id = ctx.author.id)
-    pe_member.push_favorite_to_database(problem_id, reason)
+    await pe_member.push_favorite_to_database(problem_id, reason)
 
     return await ctx.respond(f"Your favorite problem has been set to `{problem_id}`!")
 
@@ -1202,7 +1202,7 @@ async def command_remove_favorite_problem(ctx):
     await ctx.defer()
 
     pe_member = pe_api.Member(_discord_id = ctx.author.id)
-    pe_member.push_favorite_to_database(None, None)
+    await pe_member.push_favorite_to_database(None, None)
 
     return await ctx.respond("Your favorite problem has been removed!")
 
