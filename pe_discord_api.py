@@ -624,7 +624,7 @@ async def command_compare(ctx, first_member: discord.User, second_member: discor
     for solve in only_second_solves:
         solves_with_color.append((solve, color_two))
         
-    grid_image = pe_image.project_euler_grid(solves_with_color)
+    grid_image = pe_image.project_euler_grid(solves_with_color, last_problem_id)
 
     if len(only_first_solves) == 0:
         only_first_solves = ["None actually"]
