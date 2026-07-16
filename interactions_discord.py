@@ -1,6 +1,5 @@
 import discord
 import asyncio
-import pe_discord_api
 import pe_global_objects as pe_global
 import pe_api
 import math
@@ -114,7 +113,7 @@ class DropdownView(discord.ui.View):
         # super().__init__(Dropdown(self.bot))
 
 
-def problem_thread_view(problem_number: int):
+def problem_thread_view(problem_number: int, thread_id: int):
 
     # Create the button object
     button = discord.ui.Button(label="Join thread for #{0} !".format(problem_number), style=discord.ButtonStyle.primary)
@@ -124,24 +123,25 @@ def problem_thread_view(problem_number: int):
         
         await interaction.response.defer()
 
-        allowed_members = await pe_api.get_all_discord_profiles_who_solved(problem=problem_number)
-        allowed_discord_ids = list(map(lambda element: int(element[1]), allowed_members))
+        member = pe_api.Member(_discord_id=interaction.user.id)
+        allowed = await member.is_discord_linked()
+        if allowed:
+            try:
+                await member.update_from_friend_list()
+            except pe_api.EulerRequestFail:
+                pass
+            except Exception as _:
+                allowed = False
 
         # If the user did not solve, send an "ephemeral" message that only them will be able to sees
-        if int(interaction.user.id) not in allowed_discord_ids:
+        if not allowed or not await member.has_solved(problem_number):
             return await interaction.followup.send("Sorry, you did not solve [problem #{0}](<https://projecteuler.net/problem={0}>). If you did solve it, please link your account first.".format(problem_number), ephemeral=True)
-            
-        # Otherwise, iterate through available threads, and when the name matches, add the user to the list of participants
-        available_threads = await pe_discord_api.get_available_threads(interaction.guild.id, interaction.channel.id)
-        for th in available_threads:
-            
-            if th.name == pe_global.THREAD_DEFAULT_NAME_FORMAT.format(problem_number):
-                
-                if th.archived:
-                    await th.unarchive()
-                
-                await th.add_user(interaction.user)
-                break 
+
+        thread = interaction.guild.get_thread(thread_id) or await pe_global.bot.fetch_channel(thread_id)
+        if thread.archived:
+            thread = await thread.unarchive()
+
+        await thread.add_user(interaction.user)
 
     # Add the method to the button object
     button.callback = button_callback
