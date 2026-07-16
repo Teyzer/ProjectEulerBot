@@ -1267,15 +1267,15 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
     if problem_id < 0:
         return await ctx.respond("Problem ID is out of range, I cannot evaluate the difficulty of bonus problems.")
 
-    if problem_id == 0 or problem_id > len(pe_api.Problem.complete_list()):
+    if problem_id == 0 or problem_id > len(await pe_api.Problem.complete_list()):
         return await ctx.respond("Problem ID is out of range.")
 
     problem_obj = pe_api.Problem(problem_id)
-    difficulty, nearests = problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
+    difficulty, nearests = await problem_obj.guess_difficulty_detailed(neighbors_count=neighbors)
 
-    relative_difficulty = (100 * difficulty) // pe_api.Problem.difficulties_count() 
+    relative_difficulty = (100 * difficulty) // await pe_api.Problem.difficulties_count()
 
-    answer_text = f"I expect problem #{problem_id} to have difficulty level {difficulty}/{pe_api.Problem.difficulties_count()} or {relative_difficulty}% based on its {neighbors} nearest neighbors:"
+    answer_text = f"I expect problem #{problem_id} to have difficulty level {difficulty}/{await pe_api.Problem.difficulties_count()} or {relative_difficulty}% based on its {neighbors} nearest neighbors:"
     
     answer_text += "```"
 
