@@ -782,7 +782,7 @@ async def command_events(ctx, event: str, page: int):
     if event == "SoPE":
             
         ev = pe_events.eventSoPE()
-        data = ev.scores()
+        data = await ev.scores()
         
         list_data = [[k, data[k]] for k in data.keys()]
         list_data = sorted(list_data, key=lambda element: element[1], reverse=True)
