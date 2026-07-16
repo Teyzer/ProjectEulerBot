@@ -95,7 +95,7 @@ async def major_update() -> bool:
         log.info("[(-) New problem detected, adding one zero to everyone]")
         m: pe_api.Member
         for m in await pe_api.Member.members():
-            m.push_basics_to_database()
+            await m.push_basics_to_database()
         log.info("[(+) Updated all members in the database]")
     
     # event = pe_events.eventSoPE()
