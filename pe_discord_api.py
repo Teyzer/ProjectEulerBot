@@ -507,7 +507,7 @@ async def on_message(message):
             file_url = main_attach.url
 
             content = requests.get(file_url).text
-            file_path = pe_plot.generate_individual_graph(content, username)
+            file_path = await pe_plot.generate_individual_graph(content, username)
 
             if file_path is None:
                 await message.channel.send("I could not generate the graph, it requires to know when was each problem published and the request to the server failed.")
