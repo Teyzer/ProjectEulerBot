@@ -1262,6 +1262,7 @@ async def command_get_favorite_problems(ctx, member: discord.User = None):
 async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
 
     await ctx.defer()
+    return await ctx.respond("This command does not work anymore since fastest solvers lists were closed. I might find a way to make it work again in the future.")
 
     if problem_id < 0:
         return await ctx.respond("Problem ID is out of range, I cannot evaluate the difficulty of bonus problems.")
@@ -1292,6 +1293,7 @@ async def command_guess_difficulty(ctx, problem_id: int, neighbors: int = 5):
 async def command_guess_difficulty_all(ctx, neighbors: int = 5):
 
     await ctx.defer()
+    return await ctx.respond("This command does not work anymore since fastest solvers lists were closed. I might find a way to make it work again in the future.")
 
     try:
         last_problem = await pe_api.last_problem()
