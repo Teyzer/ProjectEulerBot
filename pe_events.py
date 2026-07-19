@@ -44,22 +44,22 @@ class eventSoPE:
     def starting_timestamp(self):
         return self.data["timestamp_start"]
             
-    def scores(self):
+    async def scores(self):
         
-        problems = pe_api.Problem.complete_list()
+        problems = await pe_api.Problem.complete_list()
         score_list = {}
         
         problem: pe_api.Problem
         for problem in problems:
             
-            problem_id = problem.problem_id
+            problem_id = problem.problem_id()
             if not self.is_problem_solved(problem_id):
                 continue
                 
             solver_name, timestamp = self.get_solver(problem_id)
             time_to_solve = timestamp - self.starting_timestamp()
             
-            difficulty = problem.difficulty() if problem.difficulty_is_defined() else 70
+            difficulty = await problem.difficulty() if await problem.difficulty_is_defined() else 70
             
             difficulty_score = max(5, (difficulty // 15) * 5)
             day_score = time_to_solve // 86400
@@ -409,5 +409,3 @@ def update_events(profiles):
 
 if __name__ == "__main__":
     pass
-
-    
