@@ -73,7 +73,7 @@ def graph_solves(day_counts: int, local: bool, smoothing = 1):
 
         for element in data:
             
-            d = datetime.datetime.strptime(element["date_stat"], "%Y-%m-%d %H:%M:%S")
+            d = datetime.datetime.strptime(element["date_stat"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=pytz.utc)
             if d >= minimum_day:
                 filtered_data.append({"date_stat": element["date_stat"], "solves": element["solves"]}) 
 
@@ -83,11 +83,14 @@ def graph_solves(day_counts: int, local: bool, smoothing = 1):
         counts = {element["date_stat"]: element["solves"] for element in filtered_data}
         
 
-    data_df = {"DATE": days_list, "SOLVES": list(counts.values())}
+    plot_data = sorted(zip(map(datetime.datetime.fromisoformat, days_list), counts.values()))
 
-    figure = px.line(data_df, x="DATE", y="SOLVES")
-    
-    figure.write_image(save_location)
+    plt.style.use("ggplot")
+    plt.cla()
+    plt.title("Solves versus time")
+    plt.plot(*zip(*plot_data))
+    plt.gcf().autofmt_xdate()
+    plt.savefig(save_location, bbox_inches="tight")
     return save_location
 
 
