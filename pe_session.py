@@ -216,7 +216,7 @@ async def is_connected() -> bool:
     if pe_request.status != 200:
         return False
 
-    return "Logged in as" in pe_request.response
+    return "Signed in as" in pe_request.response
 
 
 async def is_website_active() -> bool:
