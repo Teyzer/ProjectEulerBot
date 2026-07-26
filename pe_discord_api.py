@@ -443,20 +443,43 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
 
 
 @bot.slash_command(name="graph", description="Graph something!")
-@option("data", choices=["solves"], default="solves")
-@option("subset", choices=["local", "global"], default="local")
-@option("days_count", min_value=0, max_value=1000, default=10)
+@option("graph", choices=["Solves per month and cumulative", "Solve activity (github-like)", "Average difficulty of solves"])
+@option("member", description="The targeted user", default = None)
 @pe_decorators.command
-async def command_graph(ctx, data: str, subset: str, days_count: int):
+async def command_graph(ctx, graph: str, member: discord.User):
     
     await ctx.defer()
 
-    if data == "solves":
-        image_location = pe_plot.graph_solves(days_count, subset == "local")
-    else:
-        return await ctx.respond("The given parameters are not actually available")
+    m = pe_api.Member(_discord_id = (ctx.author.id if member is None else member.id))
 
-    return await ctx.respond(file = discord.File(image_location))
+    if not await m.is_discord_linked():
+        return await ctx.respond("This user does not have a project euler account linked! Please link with /link first")
+
+    if await m.private() and await m.discord_id() != str(ctx.author.id):
+        return await ctx.respond("This user has a private profile.")
+
+    if graph not in ["Solves per month and cumulative", "Solve activity (github-like)", "Average difficulty of solves"]:
+        return await ctx.respond("The given graph option is not available")
+
+    dct = {
+        "Solves per month and cumulative": pe_plot.generate_graph_monthly,
+        "Solve activity (github-like)": pe_plot.generate_graph_github,
+        "Average difficulty of solves": pe_plot.generate_graph_difficulty
+    }
+
+    if graph not in dct:
+        return await ctx.respond(f"Graph `{graph}` is not implemented yet for `{await m.username_option()}`.")
+
+    path = await dct[graph](m)
+
+    if path is None or not os.path.exists(path):
+        return await ctx.respond("I could not generate the graph.")
+
+    try:
+        return await ctx.respond(file=discord.File(path))
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
 
 
 
