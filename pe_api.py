@@ -6,6 +6,7 @@ import pytz
 import locale
 import json
 import time
+import csv
 
 import random
 
@@ -1006,7 +1007,7 @@ class Member:
         """
         Returns a CSV string of the solves of the member. Formatted to account for the solves that are omitted.
         """
-        csv_content = await self.solve_csv_untouched()        
+        csv_content = await self.solve_csv_untouched()
         
         lines = list(filter(lambda x: x.strip() != '', csv_content.split("\n")))
         problems_ids = set(map(lambda x: x.split(',')[0], lines))
@@ -1027,7 +1028,6 @@ class Member:
         returns a list of all the solves of an user, with the CSV available on the website
         """
 
-
         seperator = ","
 
         solves = []
@@ -1040,19 +1040,19 @@ class Member:
         lines = csv_string.split("\n")
         for line in lines:
             
-            elements = line.split(seperator)
+            elements = next(csv.reader([line], skipinitialspace=True))
             if len(elements) <= 1:
                 continue
 
-            problem_id = int(elements[2].replace("B", "-"))
-            timestamp = int(elements[0])
+            problem_id = int(elements[0].replace("B", "-"))
+            dtime = datetime.datetime.strptime(elements[2].strip(), "%d %b %y (%H:%M)")
             
             solves.append(
                 Solve(
                     _problem=Problem(problem_id),
                     _problem_id=problem_id,
                     _member=self,
-                    _unixtime=timestamp,
+                    _unixtime=round(dtime.timestamp()),
                     _unix_is_accurate=True
                 )
             )

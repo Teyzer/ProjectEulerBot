@@ -1,12 +1,17 @@
 from typing import Optional
 
+import pandas as pd
 import plotly.express as px
 import plotly.io as pio
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
+import math
 
 import pe_api
 import pe_image
 import pe_global_objects as pe_global
+import pe_setup
 
 import datetime
 import pytz
@@ -15,6 +20,8 @@ import time
 import os
 import glob
 import shutil
+
+import asyncio
 
 import locale
 
@@ -217,14 +224,168 @@ def generate_simple_individual_graph(solves, username):
  
 
 
+async def generate_graph_monthly(member: pe_api.Member) -> str:
+    r = await member.solves_by_csv()
+    username = await member.username_option()
+    
+    # 1. Process dates
+    df = pd.DataFrame([{"date": datetime.datetime.fromtimestamp(s.unixtime())} for s in r]).sort_values(by="date")
+    df['month'] = df['date'].dt.to_period('M').dt.to_timestamp()
+    
+    # 2. Fill empty months and calculate cumulative solves
+    df_months = pd.DataFrame({'month': pd.date_range(start=df['month'].min(), end=df['month'].max(), freq='MS')})
+    df_months = df_months.merge(df.groupby('month').size().reset_index(name='monthly'), on='month', how='left').fillna(0)
+    df_months['cumulative'] = df_months['monthly'].cumsum()
+
+    # 3. Build the plot
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Bar(x=df_months['month'], y=df_months['monthly'], marker_color='rgba(150,150,150,0.4)'), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df_months['month'], y=df_months['cumulative'], mode='lines', line=dict(color='#d62728', width=4)), secondary_y=True)
+    
+    fig.update_layout(
+        title=dict(text=f"Monthly and Cumulative Solves - {username}", font=dict(size=24)),
+        plot_bgcolor='#f0f0f0',         # Inner graph area (light gray)
+        paper_bgcolor='white',          # Outer margins (solid white)
+        showlegend=False, 
+        bargap=0.1,
+        width=1200,
+        height=600,
+        margin=dict(l=20, r=20, t=60, b=20) 
+    )
+    
+    # Add white grid lines for the X-axis (vertical lines)
+    fig.update_xaxes(showgrid=True, gridcolor='white', gridwidth=1.5)
+    
+    # Add white grid lines for the primary Y-axis (horizontal lines)
+    fig.update_yaxes(title_text="Monthly Solves", showgrid=True, gridcolor='white', gridwidth=1.5, secondary_y=False)
+    
+    # Keep the secondary Y-axis grid off to prevent messy overlapping lines
+    fig.update_yaxes(title_text="Cumulative Solves", showgrid=False, secondary_y=True)
+    
+    # 4. Save and return path
+    filename = f"images_saves/{member._username}_graph_monthly.png" 
+    fig.write_image(filename, scale=2) 
+    
+    return filename
+
+
+
+async def generate_graph_github(member: pe_api.Member) -> str:
+    r = await member.solves_by_csv()
+    username = await member.username_option()
+    
+    # 1. Process dates and build continuous timeline
+    dates = [datetime.datetime.fromtimestamp(s.unixtime()).date() for s in r]
+    df = pd.DataFrame({'date': pd.date_range(start=min(dates), end=max(dates), freq='D')})
+    
+    # Count solves and merge
+    solve_counts = pd.Series(dates).value_counts().reset_index()
+    solve_counts.columns = ['date', 'solves']
+    df['date'] = df['date'].dt.date
+    df = df.merge(solve_counts, on='date', how='left').fillna({'solves': 0})
+    
+    # 2. Grid Math (Target Aspect Ratio 3:1)
+    num_rows = math.ceil(math.sqrt(len(df) / 3.0))
+    df['x_index'] = df.index // num_rows
+    df['y_index'] = df.index % num_rows
+    
+    # 3. Locate years for X-axis labels
+    df['year'] = pd.to_datetime(df['date']).dt.year
+    years = df.drop_duplicates(subset=['year'])
+    
+    # 4. Build the plot
+    heatmap = df.pivot(index='y_index', columns='x_index', values='solves')
+    colors = [[0.0, '#ebedf0'], [0.01, '#9be9a8'], [0.33, '#40c463'], [0.66, '#30a14e'], [1.0, '#216e39']]
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=heatmap.values, x=heatmap.columns, y=heatmap.index,
+        colorscale=colors, xgap=2, ygap=2, showscale=False, hoverongaps=False
+    ))
+    
+    fig.update_layout(
+        title=dict(text=f"Solve Activity - {username}", font=dict(size=24)),
+        plot_bgcolor='white', 
+        paper_bgcolor='white',
+        width=1200, height=500, # Adjusted height for the 3:1 ratio
+        margin=dict(l=20, r=20, t=60, b=20),
+        xaxis=dict(
+            showgrid=False, zeroline=False, side='top', ticks="", constrain="domain",
+            tickmode='array', tickvals=years['x_index'].tolist(), ticktext=years['year'].astype(str).tolist()
+        ),
+        yaxis=dict(
+            autorange="reversed", showgrid=False, zeroline=False, showticklabels=False, 
+            scaleanchor="x", scaleratio=1, constrain="domain" # Forces perfect squares
+        )
+    )
+    
+    # 5. Save and return path
+    filename = f"images_saves/{member._username}_graph_github.png"
+    fig.write_image(filename, scale=2)
+    
+    return filename
+
+
+async def generate_graph_difficulty(member: pe_api.Member) -> str:
+    r = await member.solves_by_csv()
+    username = await member.username_option()
+    
+    # 1. Process dates and fetch difficulties asynchronously
+    data = []
+    for s in r:
+        diff = await s.problem().difficulty()
+        data.append({
+            "date": datetime.datetime.fromtimestamp(s.unixtime()),
+            "difficulty": diff if diff is not None else 0
+        })
+        
+    df = pd.DataFrame(data).sort_values(by="date").reset_index(drop=True)
+    
+    # 2. Smooth by a rolling average of the last 20 solves
+    df['smoothed_diff'] = df['difficulty'].rolling(window=20, min_periods=1).mean()
+    
+    # 3. Build the plot
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df['date'], y=df['smoothed_diff'], 
+        mode='lines', line=dict(color='#ff7f0e', width=4) # Just the solid orange line
+    ))
+    
+    fig.update_layout(
+        title=dict(text=f"Average Difficulty Progression (Rolling 20 Solves) - {username}", font=dict(size=24)),
+        plot_bgcolor='#f0f0f0',         # Inner graph area (light gray)
+        paper_bgcolor='white',          # Outer margins (solid white)
+        width=1200, height=600,
+        margin=dict(l=20, r=20, t=60, b=20),
+        showlegend=False
+    )
+    
+    # Add the white gridlines to match the monthly graph
+    fig.update_xaxes(showgrid=True, gridcolor='white', gridwidth=1.5)
+    fig.update_yaxes(title_text="Difficulty (%)", showgrid=True, gridcolor='white', gridwidth=1.5, rangemode='tozero')
+    
+    # 4. Save and return path
+    filename = f"images_saves/{member._username}_graph_difficulty.png"
+    fig.write_image(filename, scale=2)
+    
+    return filename
+
+
+
 
 if __name__ == "__main__":
 
-    with open("pjt33_history_2023_04_25_2325.csv", "r") as f:
-        content = "".join(f.readlines())
+    # with open("pjt33_history_2023_04_25_2325.csv", "r") as f:
+    #     content = "".join(f.readlines())
 
-    tic = time.time()
+    # tic = time.time()
 
-    generate_individual_graph(content, "Teyzer18")
+    # generate_individual_graph(content, "Teyzer18")
 
-    print(time.time() - tic)
+    # print(time.time() - tic)
+
+    pe_setup.setup()    
+
+    m = pe_api.Member(_username="pacome_f")
+    r = asyncio.run(m.solves_by_csv())
+
+    

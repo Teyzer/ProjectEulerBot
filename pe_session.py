@@ -21,6 +21,7 @@ from rich.console import Console
 from pe_global_objects import log
 import os
 
+import asyncio
 
 console = Console()
 
@@ -229,11 +230,4 @@ async def is_website_active() -> bool:
 
 
 if __name__ == "__main__":
-
-    profile_name = "profiles/authentic.json"
-    with open(profile_name, "r") as f:
-        data = json.load(f)
-        session_setup(data["captcha_key"], profile_name, data["pe_account"]["password"])
-        
-    print(is_connected())
-    print(refresh_tokens())
+    pass
