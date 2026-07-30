@@ -1,11 +1,15 @@
 from typing import Optional
 
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw, ImageFont
+
 import plotly.express as px
 import plotly.io as pio
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import matplotlib.pyplot as plt
+
 import math
 
 import pe_api
@@ -29,6 +33,12 @@ import locale
 # Called when started
 def graph_start():
     pio.templates.default = "plotly"
+
+
+def _github_grid_rows(total_days: int, target_ratio: float = 3.0) -> int:
+    """Round the grid height up to the next multiple of 7 rows."""
+    base_rows = max(1, math.ceil(math.sqrt(total_days / target_ratio)))
+    return int(math.ceil(base_rows / 7) * 7)
     
     
 def project_euler_date_converter(s: str):
@@ -225,7 +235,7 @@ def generate_simple_individual_graph(solves, username):
 
 
 async def generate_graph_monthly(member: pe_api.Member) -> str:
-    r = await member.solves_by_csv()
+    r = await member.solves_by_csv(True)
     username = await member.username_option()
     
     # 1. Process dates
@@ -271,7 +281,7 @@ async def generate_graph_monthly(member: pe_api.Member) -> str:
 
 
 async def generate_graph_github(member: pe_api.Member) -> str:
-    r = await member.solves_by_csv()
+    r = await member.solves_by_csv(True)
     username = await member.username_option()
     
     # 1. Process dates and build continuous timeline
@@ -285,7 +295,7 @@ async def generate_graph_github(member: pe_api.Member) -> str:
     df = df.merge(solve_counts, on='date', how='left').fillna({'solves': 0})
     
     # 2. Grid Math (Target Aspect Ratio 3:1)
-    num_rows = math.ceil(math.sqrt(len(df) / 3.0))
+    num_rows = _github_grid_rows(len(df))
     df['x_index'] = df.index // num_rows
     df['y_index'] = df.index % num_rows
     
@@ -295,6 +305,7 @@ async def generate_graph_github(member: pe_api.Member) -> str:
     
     # 4. Build the plot
     heatmap = df.pivot(index='y_index', columns='x_index', values='solves')
+    heatmap = heatmap.reindex(index=range(num_rows), fill_value=0)
     colors = [[0.0, '#ebedf0'], [0.01, '#9be9a8'], [0.33, '#40c463'], [0.66, '#30a14e'], [1.0, '#216e39']]
     
     fig = go.Figure(data=go.Heatmap(
@@ -326,7 +337,7 @@ async def generate_graph_github(member: pe_api.Member) -> str:
 
 
 async def generate_graph_difficulty(member: pe_api.Member) -> str:
-    r = await member.solves_by_csv()
+    r = await member.solves_by_csv(True)
     username = await member.username_option()
     
     # 1. Process dates and fetch difficulties asynchronously
@@ -366,6 +377,119 @@ async def generate_graph_difficulty(member: pe_api.Member) -> str:
     # 4. Save and return path
     filename = f"images_saves/{member._username}_graph_difficulty.png"
     fig.write_image(filename, scale=2)
+    
+    return filename
+
+
+def _build_gol_gif(r, username: str) -> str:
+
+    # Process dates and build continuous timeline
+    dates = [datetime.datetime.fromtimestamp(s.unixtime()).date() for s in r]
+    df = pd.DataFrame({'date': pd.date_range(start=min(dates), end=max(dates), freq='D')})
+    
+    solve_counts = pd.Series(dates).value_counts().reset_index()
+    solve_counts.columns = ['date', 'solves']
+    df['date'] = df['date'].dt.date
+    df = df.merge(solve_counts, on='date', how='left').fillna({'solves': 0})
+    
+    # Grid Math (Target Aspect Ratio 3:1)
+    num_rows = _github_grid_rows(len(df))
+    df['x_index'] = df.index // num_rows
+    df['y_index'] = df.index % num_rows
+    
+    # Create the initial state matrix
+    heatmap = df.pivot(index='y_index', columns='x_index', values='solves').fillna(0)
+    heatmap = heatmap.reindex(index=range(num_rows), fill_value=0)
+    grid = (heatmap.values > 0).astype(int)
+    
+    h, w = grid.shape
+    
+    # Drawing parameters
+    cell_size = 12
+    gap = 3
+    step_size = cell_size + gap
+    title_space = 52
+    img_h = h * step_size + gap + title_space
+    img_w = w * step_size + gap
+    
+    color_dead = np.array([235, 237, 240], dtype=np.uint8)
+    color_alive = np.array([33, 110, 57], dtype=np.uint8)
+    color_bg = np.array([255, 255, 255], dtype=np.uint8)
+    color_text = (60, 60, 60)
+
+    title = f"Game of Life for member {username}"
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", size=22)
+    except Exception:
+        font = ImageFont.load_default()
+    
+    frames = []
+
+    # Timing model
+    accel_generations = 50
+    fastest_frame_duration_ms = 50
+    steady_phase_ms = 20_000
+    steady_generations = max(1, steady_phase_ms // fastest_frame_duration_ms)
+    num_generations = accel_generations + steady_generations
+
+    durations = [1500]
+    for i in range(1, accel_generations):
+        progress = i / (accel_generations - 1)
+        current_duration = fastest_frame_duration_ms + 750 * ((1 - progress) ** 2)
+        durations.append(int(current_duration))
+
+    durations.extend([fastest_frame_duration_ms] * steady_generations)
+    
+    # Game of Life Simulation Loop
+    for _ in range(num_generations):
+        img_array = np.full((img_h, img_w, 3), color_bg, dtype=np.uint8)
+        
+        for i in range(h):
+            for j in range(w):
+                color = color_alive if grid[i, j] else color_dead
+                y = gap + title_space + i * step_size
+                x = gap + j * step_size
+                img_array[y:y+cell_size, x:x+cell_size] = color
+
+        frame_img = Image.fromarray(img_array)
+        draw = ImageDraw.Draw(frame_img)
+        bbox = draw.textbbox((0, 0), title, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_x = max(0, (img_w - text_w) // 2)
+        draw.text((text_x, 14), title, fill=color_text, font=font)
+
+        frames.append(frame_img)
+        
+        # Calculate next generation
+        padded = np.pad(grid, 1, mode='constant')
+        neighbors = sum(np.roll(np.roll(padded, i, 0), j, 1)
+                        for i in (-1, 0, 1) for j in (-1, 0, 1)
+                        if (i != 0 or j != 0))
+        neighbors = neighbors[1:-1, 1:-1]
+        
+        # Conway's Rules
+        grid = ((neighbors == 3) | (grid & (neighbors == 2))).astype(int)
+
+    # Save as GIF
+    filename = f"images_saves/{username}_gol_github.gif"
+    frames[0].save(
+        filename,
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations, 
+        loop=0
+    )
+    
+    return filename
+
+
+# 2. Keep the async wrapper for network calls and thread offloading
+async def generate_graph_github_gol(member: pe_api.Member) -> str:
+
+    r = await member.solves_by_csv(True)
+    username = await member.username_option()
+    
+    filename = await asyncio.to_thread(_build_gol_gif, r, username)
     
     return filename
 

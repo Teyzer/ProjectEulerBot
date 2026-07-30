@@ -443,7 +443,11 @@ async def command_easiest(ctx, member: discord.User, method: str, display_nb: in
 
 
 @bot.slash_command(name="graph", description="Graph something!")
-@option("graph", choices=["Solves per month and cumulative", "Solve activity (github-like)", "Average difficulty of solves"])
+@option("graph", choices=
+        [
+            "Solves per month and cumulative", "Solve activity (github-like)", "Average difficulty of solves",
+            "Animate your solve activity with Conway's Game of Life"
+        ])
 @option("member", description="The targeted user", default = None)
 @pe_decorators.command
 async def command_graph(ctx, graph: str, member: discord.User):
@@ -458,17 +462,16 @@ async def command_graph(ctx, graph: str, member: discord.User):
     if await m.private() and await m.discord_id() != str(ctx.author.id):
         return await ctx.respond("This user has a private profile.")
 
-    if graph not in ["Solves per month and cumulative", "Solve activity (github-like)", "Average difficulty of solves"]:
-        return await ctx.respond("The given graph option is not available")
-
     dct = {
         "Solves per month and cumulative": pe_plot.generate_graph_monthly,
         "Solve activity (github-like)": pe_plot.generate_graph_github,
-        "Average difficulty of solves": pe_plot.generate_graph_difficulty
+        "Average difficulty of solves": pe_plot.generate_graph_difficulty,
+        "Animate your solve activity with Conway's Game of Life": pe_plot.generate_graph_github_gol
     }
 
     if graph not in dct:
         return await ctx.respond(f"Graph `{graph}` is not implemented yet for `{await m.username_option()}`.")
+
 
     path = await dct[graph](m)
 

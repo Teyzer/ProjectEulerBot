@@ -1022,19 +1022,17 @@ class Member:
         return csv_content
     
 
-    async def solves_by_csv(self) -> List[Solve]:
+    async def solves_by_csv(self, remove_inaccurate: bool = False) -> List[Solve]:
         
         """
         returns a list of all the solves of an user, with the CSV available on the website
         """
 
-        seperator = ","
-
         solves = []
         if await self.solve_count() == 0:
             return solves
 
-        csv_string = await self.solve_csv()
+        csv_string = await self.solve_csv() 
         solves_found = set()
 
         lines = csv_string.split("\n")
@@ -1046,6 +1044,9 @@ class Member:
 
             problem_id = int(elements[0].replace("B", "-"))
             dtime = datetime.datetime.strptime(elements[2].strip(), "%d %b %y (%H:%M)")
+
+            if remove_inaccurate and dtime.year < 1980:
+                continue
             
             solves.append(
                 Solve(
@@ -1059,18 +1060,19 @@ class Member:
 
             solves_found.add(problem_id)
 
-        for problem_id in await self.solved_problems():
-            
-            if problem_id not in solves_found:
-                solves.append(
-                    Solve(
-                        _problem=Problem(problem_id),
-                        _problem_id=problem_id,
-                        _member=self,
-                        _unixtime=0,
-                        _unix_is_accurate=False
+        if not remove_inaccurate:
+            for problem_id in await self.solved_problems():
+                
+                if problem_id not in solves_found:
+                    solves.append(
+                        Solve(
+                            _problem=Problem(problem_id),
+                            _problem_id=problem_id,
+                            _member=self,
+                            _unixtime=0,
+                            _unix_is_accurate=False
+                        )
                     )
-                )
 
         solves = sorted(solves, key = lambda s: s.unixtime())
         return solves
