@@ -16,6 +16,7 @@ import json
 
 import pe_api
 import phone_api
+import pe_global_objects as pe_global
 
 from rich.console import Console
 from pe_global_objects import log
@@ -28,16 +29,18 @@ console = Console()
 MAX_TRIES = 3
 CAPTCHA_KEY = None
 PROFILE_NAME = None
+PE_USERNAME = None
 PE_PASSWORD = None
 
 PHPSESS_NAME = "__Host-PHPSESSID"
 
 
-def session_setup(captcha: str, profile: str, pe_password: str) -> None:
+def session_setup(captcha: str, profile: str, pe_username: str, pe_password: str) -> None:
 
-    global CAPTCHA_KEY, PROFILE_NAME, PE_PASSWORD
+    global CAPTCHA_KEY, PROFILE_NAME, PE_USERNAME, PE_PASSWORD
     CAPTCHA_KEY = captcha
     PROFILE_NAME = profile
+    PE_USERNAME = pe_username
     PE_PASSWORD = pe_password
 
 
@@ -114,7 +117,7 @@ def try_fetching_cookies(human: bool = False):
 
         driver.find_element("xpath", 
             "//input[@id='username' and @name='username']"
-        ).send_keys("EulerCommunity")
+        ).send_keys(PE_USERNAME)
 
         driver.find_element("xpath", 
             "//input[@id='password' and @name='password']"
@@ -204,25 +207,20 @@ def refresh_tokens():
 
 
 async def is_connected() -> bool:
-
     try:
-        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/archives", True)
+        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/minimal=connected", True)
     except TooManyRedirects as exc:
         pe_api.console.log(exc, traceback.format_exc())
         log.exception(exc)
         return False
     except pe_api.EulerRequestFail:
         return False
-
-    if pe_request.status != 200:
-        return False
-
-    return "Signed in as" in pe_request.response
+    return PE_USERNAME in pe_request.response
 
 
 async def is_website_active() -> bool:
     try:
-        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/", False)
+        pe_request = await pe_api.ProjectEulerRequest.fetch("https://projecteuler.net/minimal=connected", False)
     except pe_api.EulerRequestFail as _:
         return False
     return pe_request.status == 200
