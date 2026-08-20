@@ -69,10 +69,11 @@ async def major_update() -> bool:
     # In the console
     log.info(f"Starting repeat #{pe_global.REPEATS_SINCE_START}")
 
-    try:
-        await announce_rss()
-    except Exception as exc:
-        log.exception(exc)
+    if pe_global.REPEATS_SINCE_START % pe_global.ROUNDS_NEEDED_TO_ANNOUNCE_RSS == 0:
+        try:
+            await announce_rss()
+        except Exception as exc:
+            log.exception(exc)
 
     # Getting the data required without blocking the event loop
     try:

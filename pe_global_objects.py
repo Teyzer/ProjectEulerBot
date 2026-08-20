@@ -21,6 +21,7 @@ STARTING_TIME = datetime.datetime.now(pytz.utc)
 # In order to keep track of the last time the solves of members were checked
 REPEATS_SINCE_START = 0
 REPEATS_SUCCESSFUL_SINCE_START = 0
+ROUNDS_NEEDED_TO_ANNOUNCE_RSS = 60
 
 # Basic Discord stuff
 intents = discord.Intents.all()

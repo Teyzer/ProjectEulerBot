@@ -111,6 +111,8 @@ class ProjectEulerRequest:
             instance = cls()
             cookies = COOKIES if need_login else {}
 
+            log.info(target_url)
+
             async with aiohttp.ClientSession(cookies=cookies) as session:
                 for try_id in range(1, allowed_tries + 1):
                     if try_id > 1:
