@@ -33,6 +33,17 @@ SESSION_REQUESTS = 0
 LAST_REQUEST_SUCCESSFUL = False
 LAST_REQUEST_TIME = datetime.datetime.now(pytz.utc)
 
+# Once this many *consecutive* failures have piled up (across every call site: the
+# background loop, session health checks, user commands, and retries within a single
+# fetch), the site/session is treated as down for a while rather than flaky, and every
+# further attempt anywhere in the app is throttled to THROTTLE_INTERVAL_SECONDS apart
+# (i.e. ~1-2 tries/min) until a request finally succeeds again. This is what stops a
+# dead session from turning into an unbounded burst of retries against projecteuler.net.
+CONSECUTIVE_FAILURES = 0
+FAILURE_THROTTLE_THRESHOLD = 3
+THROTTLE_INTERVAL_SECONDS = 35
+LAST_ATTEMPT_MONOTONIC = 0.0
+
 
 CREDENTIALS_LOCATION = "session_cookies.txt"
 BASE_URL = "https://projecteuler.net/minimal={0}"
@@ -70,6 +81,7 @@ class ProjectEulerRequest:
 
 
     _semaphore = asyncio.Semaphore(pe_global.MAX_CONCURRENT_REQUESTS)
+    _rate_limit_lock = asyncio.Lock()
 
 
     @staticmethod
@@ -77,8 +89,9 @@ class ProjectEulerRequest:
         """
         When called, increase a global variable, counting how many requests failed.
         """
-        global LAST_REQUEST_SUCCESSFUL
+        global LAST_REQUEST_SUCCESSFUL, CONSECUTIVE_FAILURES
         LAST_REQUEST_SUCCESSFUL = False
+        CONSECUTIVE_FAILURES += 1
 
 
     @staticmethod
@@ -86,11 +99,34 @@ class ProjectEulerRequest:
         """
         When called, increase a global variable, counting how many requests succeeded.
         """
-        global LAST_REQUEST_SUCCESSFUL, LAST_REQUEST_TIME, TOTAL_SUCCESS_REQUESTS
-        
+        global LAST_REQUEST_SUCCESSFUL, LAST_REQUEST_TIME, TOTAL_SUCCESS_REQUESTS, CONSECUTIVE_FAILURES
+
         LAST_REQUEST_SUCCESSFUL = True
         LAST_REQUEST_TIME = datetime.datetime.now(pytz.utc)
         TOTAL_SUCCESS_REQUESTS += 1
+        CONSECUTIVE_FAILURES = 0
+
+
+    @classmethod
+    async def _throttle_if_needed(cls) -> None:
+        """
+        Enforces a minimum spacing between attempts once failures have been piling
+        up, no matter which call site (or which retry within a single fetch) is
+        asking. This is a global gate: it is what turns an otherwise-unbounded
+        retry storm into ~1-2 requests/min while the site or session is down.
+        """
+        global LAST_ATTEMPT_MONOTONIC
+
+        async with cls._rate_limit_lock:
+            now = time.monotonic()
+
+            if CONSECUTIVE_FAILURES >= FAILURE_THROTTLE_THRESHOLD:
+                wait_for = THROTTLE_INTERVAL_SECONDS - (now - LAST_ATTEMPT_MONOTONIC)
+                if wait_for > 0:
+                    log.info(f"Backing off for {wait_for:.1f}s after {CONSECUTIVE_FAILURES} consecutive failed requests")
+                    await asyncio.sleep(wait_for)
+
+            LAST_ATTEMPT_MONOTONIC = time.monotonic()
 
 
     def __init__(self):
@@ -117,6 +153,8 @@ class ProjectEulerRequest:
                 for try_id in range(1, allowed_tries + 1):
                     if try_id > 1:
                         log.info(f"Making try #{try_id}/{allowed_tries} for {target_url}")
+
+                    await cls._throttle_if_needed()
 
                     try:
                         async with session.get(target_url, timeout=30) as r:
